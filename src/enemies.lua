@@ -1,8 +1,7 @@
--- Health bars over enemies, after HELLDIVERS 2's Helmet Passives Reborn, in the game's look: a bar
--- over each damaged enemy (or each damaged heavy) in its faction's colour, white chunks that fade out
--- where health was lost, as the game's own bars do, tinted orange while it burns and green while
--- poisoned, a pulsing blue backing while stunned, ticks every 100 health, a size by how much health it
--- has, and a dark red flash when it dies.
+-- Health bars over enemies, in the game's look: a bar over each damaged enemy (or each damaged heavy)
+-- in its faction's colour, white chunks that fade out where health was lost, as the game's own bars
+-- do, tinted orange while it burns and green while poisoned, a pulsing blue backing while stunned,
+-- ticks every 100 health, a size by how much health it has, and a dark red flash when it dies.
 --
 -- Drawn on a kit with no frame, in screen pixels from the bottom left, as api.world.to_screen answers.
 -- Sizes are in the HUD's design units, times the HUD's own scale, so they follow the UI scale setting.
