@@ -1,7 +1,7 @@
 {
   "obsidian": 1,
   "id": "alomare.betterhud",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "name": {
     "en": "Better HUD"
   },
@@ -17,7 +17,8 @@
   "modules": [
     "src/ammo.lua",
     "src/health.lua",
-    "src/enemies.lua"
+    "src/enemies.lua",
+    "src/world_bars.lua"
   ],
   "requires": [
     "obsidian.api"

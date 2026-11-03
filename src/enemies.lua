@@ -22,10 +22,10 @@ local TICK_HP = 100
 -- By max health: width and height in HUD design units, and how high over the enemy's root when its
 -- bounding box can't be read.
 local TIERS = {
-	{ hp = 0, w = 40, h = 5.5, lift = 2.2 },
-	{ hp = 400, w = 53, h = 7.2, lift = 2.5 },
-	{ hp = 1500, w = 67, h = 8.8, lift = 3.6 },
-	{ hp = 5000, w = 80, h = 11, lift = 8.0 },
+	{ hp = 0, w = 40, h = 4.1, lift = 2.2 },
+	{ hp = 400, w = 53, h = 5.4, lift = 2.5 },
+	{ hp = 1500, w = 67, h = 6.6, lift = 3.6 },
+	{ hp = 5000, w = 80, h = 8.3, lift = 8.0 },
 }
 local LIFT = 13 -- design units between the anchor and the bar
 
@@ -39,6 +39,11 @@ local FIRE = { 224, 148, 18 }
 local POISON = { 89, 184, 38 }
 local STUN = "#2666b3"
 local TICK = "#00000033"
+-- From, to (shares of the height from the bottom) and colour.
+local SHADE = {
+	{ 0, 0.2, "#00000038" }, { 0.2, 0.4, "#0000001a" },
+	{ 0.6, 0.8, "#ffffff12" }, { 0.8, 1, "#ffffff2a" },
+}
 local DEATH = "#660505e6"
 
 local tracked = {}
@@ -219,6 +224,10 @@ local function draw_bar(kit, b, now, scale)
 	local s = health(unit)
 	local pool = s and -(s.constitution or 0) or 0
 	kit:rect(x, y, w * pct, h, colours(unit))
+	-- A soft shade over the bar, light at the top and dark at the bottom, in bands (y is up).
+	for _, band in ipairs(SHADE) do
+		kit:rect(x, y + h * band[1], w, h * (band[2] - band[1]), band[3])
+	end
 	-- A tick every 100 health, or every 200, 500, 1000... until they're 5 pixels apart.
 	local step = TICK_HP
 	for _, k in ipairs({ 1, 2, 5, 10, 20, 50, 100 }) do
