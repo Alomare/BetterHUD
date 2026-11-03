@@ -1,12 +1,12 @@
 {
   "obsidian": 1,
   "id": "alomare.betterhud",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "name": {
     "en": "Better HUD"
   },
   "description": {
-    "en": "More on the HUD: rounds left in the magazine, a health bar under each player's card and health bars over enemies. Each one can be switched off in the pause menu's Mod Settings."
+    "en": "More on the HUD: rounds left in the magazine, a health bar under each player's card, health bars over enemies, damage numbers and a reload circle. Each one can be switched off in the pause menu's Mod Settings."
   },
   "authors": [
     "Alomare"
@@ -19,7 +19,8 @@
     "src/health.lua",
     "src/enemies.lua",
     "src/world_bars.lua",
-    "src/numbers.lua"
+    "src/numbers.lua",
+    "src/reload.lua"
   ],
   "requires": [
     "obsidian.api"

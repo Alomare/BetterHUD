@@ -76,6 +76,27 @@ local function screen_of(n, position, scale)
 	return x + SIDE * scale, y, inside
 end
 
+-- A number with a soft drop shadow and a dark outline under it, so it stays readable on snow, sand
+-- and explosions. The kit draws text one layer over its own, so each pass sits on the layer below the
+-- next: shadow, then outline, then the number.
+local SHADOW, OUTLINE = { 0, 0, 0, 140 }, { 10, 10, 10, 235 }
+local AROUND = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 0.7, 0.7 }, { -0.7, 0.7 }, { 0.7, -0.7 }, { -0.7, -0.7 } }
+
+function M.draw_number(kit, text, x, y, size, ink, scale)
+	local base = kit:layer()
+	local opts = { font = "ui_heading", size = size, align = "center" }
+	kit:layer(base - 2)
+	opts.color = SHADOW
+	kit:text(text, x + 1.8 * scale, y - 2.2 * scale, opts)
+	kit:layer(base - 1)
+	opts.color = OUTLINE
+	local d = 1.3 * scale
+	for _, o in ipairs(AROUND) do kit:text(text, x + o[1] * d, y + o[2] * d, opts) end
+	kit:layer(base)
+	opts.color = ink
+	kit:text(text, x, y, opts)
+end
+
 local function track_players(list, opened, mode, now)
 	for _, p in ipairs(api.game.all_avatars() or {}) do
 		local ok, s = pcall(g("EntityAux").state, p.unit, "health")
@@ -130,8 +151,8 @@ function M.install(which, mode, position)
 					local rise, alpha = M.look(n, clock)
 					local ink = n.kind == "player" and PLAYER_INK or ENEMY_INK
 					kit:opacity(alpha)
-					kit:text(tostring(math.floor(n.amount + 0.5)), x + n.jitter * scale * (where == "hit" and 1 or 0), y + rise * RISE * scale,
-						{ font = "ui_heading", size = SIZE * scale, color = ink, align = "center" })
+					M.draw_number(kit, tostring(math.floor(n.amount + 0.5)), x + n.jitter * scale * (where == "hit" and 1 or 0), y + rise * RISE * scale,
+						SIZE * scale, ink, scale)
 				end
 			end
 			kit:opacity(1)

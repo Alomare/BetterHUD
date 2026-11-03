@@ -4,6 +4,7 @@ local health = obsidian.module("src/health")
 local enemies = obsidian.module("src/enemies")
 local world_bars = obsidian.module("src/world_bars")
 local numbers = obsidian.module("src/numbers")
+local reload = obsidian.module("src/reload")
 
 local api = obsidian.import("obsidian.api")
 
@@ -12,6 +13,7 @@ local on = {
 	ammo = true, player_health = true, player_health_numbers = false, enemy_health = true,
 	hide_world_health = false, hide_world_get_up = false,
 	damage_numbers = "both", damage_numbers_mode = "accumulated", damage_numbers_position = "entity",
+	reload_circle = true,
 }
 
 local function choices(list)
@@ -32,6 +34,7 @@ if api.mod_settings then
 	toggle("player_health", "Player health bars", "A health bar under each player card, with a white chunk fading where health was lost.")
 	toggle("player_health_numbers", "Health numbers", "Current and maximum health on each player health bar.")
 	toggle("enemy_health", "Enemy health bars", "A bar over every enemy the player hits and every heavy that any player hurts.")
+	toggle("reload_circle", "Reload circle", "A ring over the player's Helldiver that fills while the weapon in hand reloads.")
 	toggle("hide_world_health", "Hide on-player health bar", "Hides the health bar the game draws over each Helldiver.")
 	toggle("hide_world_get_up", "Hide on-player recovery bar", "Hides the bar the game draws over a downed Helldiver getting back up.")
 	choice("damage_numbers", "Damage numbers", { { "off", "Off" }, { "enemies", "Enemies" }, { "players", "Players" }, { "both", "Both" } },
@@ -47,6 +50,7 @@ ammo.install(function() return on.ammo end)
 health.install(function() return on.player_health end, function() return on.player_health_numbers end)
 enemies.install(function() return on.enemy_health end)
 world_bars.install(function() return on.hide_world_health end, function() return on.hide_world_get_up end)
+reload.install(function() return on.reload_circle end)
 numbers.install(function() return on.damage_numbers end, function() return on.damage_numbers_mode end,
 	function() return on.damage_numbers_position end)
 
