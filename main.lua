@@ -15,7 +15,7 @@ if api.mod_settings then
 	local function toggle(id, label, info)
 		on[id] = page:toggle(id, { label = label, info = info, default = true, on_change = function(v) on[id] = v end })
 	end
-	toggle("ammo", "Ammo counter", "Rounds left beside the magazine picture.")
+	toggle("ammo", "Ammo counter", "Rounds left, a laser's heat or an arc weapon's charge, beside the magazine picture.")
 	toggle("player_health", "Player health bars", "A health bar under each player's card.")
 	toggle("enemy_health", "Enemy health bars", "A health bar over enemies that have lost health.")
 	on.enemy_which = page:choice("enemy_which", { label = "Enemy bars on", default = "damaged",
