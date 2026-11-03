@@ -1,7 +1,8 @@
--- Health bars over enemies, in the game's look: a bar over each damaged enemy (or each damaged heavy)
--- in its faction's colour, white chunks that fade out where health was lost, as the game's own bars
--- do, tinted orange while it burns and green while poisoned, a pulsing blue backing while stunned,
--- ticks every 100 health, a size by how much health it has, and a dark red flash when it dies.
+-- Health bars over enemies, in the game's look: a bar over each enemy a player of this machine has hit
+-- (Obsidian API's combat.on_hit, 1.14.0) and each heavy anyone has hurt, in the faction's colour. White
+-- chunks fade out where health was lost, as on the game's bars; a pulsing outline shows a burn (orange),
+-- poison (green) or stun (blue); the size follows the enemy's health, and a white flash marks a death.
+-- With an older API, every damaged enemy gets a bar.
 --
 -- Drawn on a kit with no frame, in screen pixels from the bottom left, as api.world.to_screen answers.
 -- Sizes are in the HUD's design units, times the HUD's own scale, so they follow the UI scale setting.
@@ -14,10 +15,9 @@ local function g(name) return rawget(_G, name) end
 
 local LINGER = 8 -- seconds a bar stays after the last loss
 local FADE_IN, FADE_OUT = 0.15, 0.27
-local DEATH_HOLD, DEATH_FADE = 0.5, 0.22
+local DEATH_HOLD, DEATH_FADE = 0.5, 0.11
 local CHUNK_LIFE, CHUNKS = 1, 5 -- a lost stretch fades out in this many seconds; this many at once
 local LIMIT = 64
-local TICK_HP = 100
 
 -- By max health: width and height in HUD design units, and how high over the enemy's root when its
 -- bounding box can't be read.
@@ -35,18 +35,22 @@ local OUTLINE = "#00000063"
 local FACTIONS = { bugs = "#ff8c14e6", cyborgs = "#e1281ee6", illuminates = "#a046e6e6" }
 local OTHER = "#ff3719e6"
 local LAG = { 255, 255, 255 }
-local FIRE = { 224, 148, 18 }
-local POISON = { 89, 184, 38 }
-local STUN = "#2666b3"
-local TICK = "#00000033"
+-- Status outlines, pulsing, in design units of thickness.
+local FIRE, POISON, STUN = { 255, 150, 20 }, { 110, 210, 50 }, { 60, 140, 255 }
+local RING = 1.6
 -- From, to (shares of the height from the bottom) and colour.
 local SHADE = {
 	{ 0, 0.2, "#00000038" }, { 0.2, 0.4, "#0000001a" },
 	{ 0.6, 0.8, "#ffffff12" }, { 0.8, 1, "#ffffff2a" },
 }
-local DEATH = "#660505e6"
+local DEATH = "#ffffffeb"
 
 local tracked = {}
+-- Enemies a player of this machine has hit, by when: they get a bar however much health they lost.
+local hit_by_me = setmetatable({}, { __mode = "k" })
+local hits_known = false
+-- Where each bar was drawn this frame, on screen, for damage numbers over it.
+M.drawn = {}
 local heavy_of = setmetatable({}, { __mode = "k" })
 local height_of = setmetatable({}, { __mode = "k" })
 
@@ -139,8 +143,13 @@ local function chunks_step(b, pct, dt)
 	b.pct = pct
 end
 
--- Every enemy that's lost health since it was first seen, as the filter allows.
-local function follow(now, only_heavies)
+-- Every enemy that's lost health since it was first seen: hit by this machine's player, or a heavy.
+local function wanted(unit)
+	if not hits_known then return true end
+	return hit_by_me[unit] ~= nil or is_heavy(unit)
+end
+
+local function follow(now)
 	local seen = {}
 	for _, unit in ipairs(api.enemies.list()) do
 		seen[unit] = true
@@ -148,7 +157,7 @@ local function follow(now, only_heavies)
 		local b = tracked[unit]
 		if s and s.max_hitpoints and s.max_hitpoints > 0 then
 			local pct = fraction(s)
-			if not b and pct < 1 and (not only_heavies or is_heavy(unit)) then
+			if not b and pct < 1 and wanted(unit) then
 				b = { unit = unit, pct = 1, chunks = {}, born = now, hit = now, max = s.max_hitpoints }
 				tracked[unit] = b
 			end
@@ -199,52 +208,57 @@ local function draw_bar(kit, b, now, scale)
 	local w, h = t.w * scale, math.max(2, t.h * scale)
 	local x, y = sx - w / 2, sy + LIFT * scale
 	kit:opacity(alpha_of(b, now))
+	M.drawn[unit] = { x = sx, y = y + h }
 	if b.dead then
 		kit:rect(x - 1, y - 1, w + 2, h + 2, OUTLINE)
 		kit:rect(x, y, w, h, DEATH)
 		return
 	end
-	local stunned = status(unit, "is_status_enabled", "stun") or status(unit, "is_element_enabled", "generic_stun")
-	local back = BACK
-	if stunned then
-		local pulse = 0.5 - 0.5 * math.cos(2 * math.pi * now / 0.8)
-		back = string.format("%s%02x", STUN, math.floor((0.6 + 0.1 * pulse) * 255))
+	-- A status shows as a pulsing outline around the whole bar.
+	local ring
+	if status(unit, "is_element_enabled", "fire") then ring = FIRE
+	elseif status(unit, "is_element_enabled", "poison") then ring = POISON
+	elseif status(unit, "is_status_enabled", "stun") or status(unit, "is_element_enabled", "generic_stun") then ring = STUN end
+	if ring then
+		local pulse = 0.5 - 0.5 * math.cos(2 * math.pi * now / 0.7)
+		local r, c = math.max(2, RING * scale), rgba(ring, 0.45 + 0.45 * pulse)
+		local left, bottom, ow, oh = x - 1 - r, y - 1 - r, w + 2 + r * 2, h + 2 + r * 2
+		kit:rect(left, bottom, ow, r, c)
+		kit:rect(left, bottom + oh - r, ow, r, c)
+		kit:rect(left, bottom + r, r, oh - r * 2, c)
+		kit:rect(left + ow - r, bottom + r, r, oh - r * 2, c)
 	end
 	kit:rect(x - 1, y - 1, w + 2, h + 2, OUTLINE)
-	kit:rect(x, y, w, h, back)
+	kit:rect(x, y, w, h, BACK)
 	local pct = b.pct
-	if #b.chunks > 0 then
-		local tint = LAG
-		if status(unit, "is_element_enabled", "fire") then tint = FIRE elseif status(unit, "is_element_enabled", "poison") then tint = POISON end
-		for _, c in ipairs(b.chunks) do
-			kit:rect(x + w * c.from, y, w * (c.to - c.from), h, rgba(tint, 0.85 * c.life / CHUNK_LIFE))
-		end
+	for _, c in ipairs(b.chunks) do
+		kit:rect(x + w * c.from, y, w * (c.to - c.from), h, rgba(LAG, 0.85 * c.life / CHUNK_LIFE))
 	end
 	-- The bar runs out where the enemy dies, its constitution counted in (see fraction).
-	local s = health(unit)
-	local pool = s and -(s.constitution or 0) or 0
 	kit:rect(x, y, w * pct, h, colours(unit))
 	-- A soft shade over the bar, light at the top and dark at the bottom, in bands (y is up).
 	for _, band in ipairs(SHADE) do
 		kit:rect(x, y + h * band[1], w, h * (band[2] - band[1]), band[3])
 	end
-	-- A tick every 100 health, or every 200, 500, 1000... until they're 5 pixels apart.
-	local step = TICK_HP
-	for _, k in ipairs({ 1, 2, 5, 10, 20, 50, 100 }) do
-		step = TICK_HP * k
-		if w * step / (b.max + pool) >= 5 then break end
-	end
-	local n = 1
-	while step * n < b.max + pool do
-		kit:rect(x + w * step * n / (b.max + pool) - 1, y, 2, h, TICK)
-		n = n + 1
-	end
 end
 
-function M.install(active, only_heavies)
+-- The top of an enemy, in the level: where damage numbers sit next to it.
+function M.anchor_of(unit)
+	if not g("Unit").alive(unit) then return nil end
+	local at, V3 = g("Unit").world_position(unit, 0), g("Vector3")
+	local s = health(unit)
+	return { x = V3.x(at), y = V3.y(at), z = V3.z(at) + top_of(unit, tier(s and s.max_hitpoints or 1)) }
+end
+
+function M.install(active)
 	local kit = obsidian.ui.canvas("betterhud_enemies", { layer = 400 })
 	local clock = 0
 	local failed = false
+	if api.combat and api.combat.on_hit then
+		hits_known = api.combat.on_hit(function(victim)
+			if g("EntityAux").has_component(victim, "enemy") then hit_by_me[victim] = clock end
+		end) == true
+	end
 	obsidian.on_frame(function()
 		local dt = rawget(_G, "ENGINE_DT") or 0.016
 		clock = clock + dt
@@ -255,7 +269,8 @@ function M.install(active, only_heavies)
 		local ok, err = pcall(function()
 			local st = api.game.state()
 			local hud = st and st.hud
-			follow(clock, only_heavies())
+			M.drawn = {}
+			follow(clock)
 			local list = {}
 			for unit, b in pairs(tracked) do
 				if gone(b, clock) then tracked[unit] = nil else

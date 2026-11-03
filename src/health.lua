@@ -12,7 +12,7 @@ local M = {}
 local function g(name) return rawget(_G, name) end
 
 local HEIGHT = 9 -- design units
-local GAP = 3 -- between the card's bottom and the bar
+local GAP = 0 -- between the card's bottom and the bar: none, the bar sits against the card
 local Z = 20
 local CHUNK_LIFE, CHUNKS = 1, 5 -- a lost stretch fades out in this many seconds; this many at once
 
