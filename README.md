@@ -2,7 +2,7 @@
 
 A mod for HELLDIVERS (2015) that adds to the game's HUD, for [Obsidian Mod Manager](https://github.com/Alomare/ObsidianModManager). Each part can be turned on or off in the pause menu, under **Mods → Better HUD**.
 
-- **Ammo counter** (on): over the magazine count, the rounds left in the magazine, laser heat (red near overheating) or arc charge.
+- **Ammo counter** (on): over the magazine count, the rounds left in the magazine, for guns, flamethrowers and launchers. Lasers and arc weapons, which heat or charge up instead, get no counter.
 - **Player health bars** (on): a red bar under each player card, in missions. White chunks fade out where health was lost, as on the game's bars. While a player is downed, the bar turns dark red as they bleed out, with a yellow bar under it showing how close they are to getting back up.
 - **Health numbers** (off): current and maximum health at the left of each player health bar.
 - **Enemy health bars** (on): a bar over every enemy the player hits, and every heavy any player hurts. Bug bars are orange, cyborg bars red and Illuminate bars purple. White chunks fade out where health was lost, a pulsing outline shows a burn (orange), poison (green) or stun (blue), bigger enemies get bigger bars, and a bar flashes white when the enemy dies. Bars follow the UI scale setting.

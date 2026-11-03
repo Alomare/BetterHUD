@@ -28,7 +28,7 @@ if api.mod_settings then
 	local function choice(id, label, list, info)
 		on[id] = page:choice(id, { label = label, info = info, default = on[id], choices = choices(list), on_change = function(v) on[id] = v end })
 	end
-	toggle("ammo", "Ammo counter", "Rounds left, laser heat or arc charge, over the magazine count.")
+	toggle("ammo", "Ammo counter", "Rounds left in the magazine, over the magazine count, for weapons that fire rounds.")
 	toggle("player_health", "Player health bars", "A health bar under each player card, with a white chunk fading where health was lost.")
 	toggle("player_health_numbers", "Health numbers", "Current and maximum health on each player health bar.")
 	toggle("enemy_health", "Enemy health bars", "A bar over every enemy the player hits and every heavy that any player hurts.")
