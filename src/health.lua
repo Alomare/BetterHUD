@@ -55,6 +55,19 @@ local function rect(gui, x, y, z, w, h, c)
 	gui:rect(g("Vector3")(x, y, z), g("Vector2")(w, h), g("Color")(c[1], c[2], c[3], c[4]))
 end
 
+-- Health and the most it can be, inside the bar at its left, in white over a shadow.
+local TEXT_SIZE = 10 -- design units, about the bar's height
+local TEXT_X, TEXT_Y = 4, 1.5 -- from the bar's bottom left to the words' baseline
+local INK, SHADOW = { 255, 255, 255, 255 }, { 210, 0, 0, 0 }
+
+local function numbers(gui, x, y, hp, max)
+	local text = string.format("%d / %d", math.ceil(hp), math.floor(max + 0.5))
+	local V3, C = g("Vector3"), g("Color")
+	gui:set_current_font("body_large")
+	gui:text(text, V3(x + TEXT_X + 0.6, y + TEXT_Y - 0.6, Z + 5), C(SHADOW[1], SHADOW[2], SHADOW[3], SHADOW[4]), nil, TEXT_SIZE)
+	gui:text(text, V3(x + TEXT_X, y + TEXT_Y, Z + 6), C(INK[1], INK[2], INK[3], INK[4]), nil, TEXT_SIZE)
+end
+
 -- A bar at x, y (its bottom left): backing, track, then a fill of `pct` with its top edge.
 local function bar(gui, x, y, w, h, pct, fill, top)
 	rect(gui, x - 1, y - 1, Z, w + 2, h + 2, BACK)
@@ -63,7 +76,7 @@ local function bar(gui, x, y, w, h, pct, fill, top)
 	if top then rect(gui, x, y + h - 1, Z + 4, w * pct, 1, top) end
 end
 
-local function draw(hud, dt, unit, slot, hs, cs)
+local function draw(hud, dt, unit, slot, hs, cs, show_numbers)
 	local info = hud.hud_info and hud.hud_info[slot]
 	local gui = hud.hd_gui
 	if not (info and gui) or hud.hidden or hud.enabled == false then return end
@@ -84,6 +97,7 @@ local function draw(hud, dt, unit, slot, hs, cs)
 			for _, c in ipairs(chunks_of(slot, pct, dt or 0)) do
 				rect(gui, x + w * c.from, y, Z + 2, w * (c.to - c.from), HEIGHT, { math.floor(230 * c.life / CHUNK_LIFE), LAG[1], LAG[2], LAG[3] })
 			end
+			if show_numbers then numbers(gui, x, y, hp, max) end
 		else
 			-- Downed: what's left of the bleed-out pool, constitution being negative, and below it how
 			-- far getting up has come.
@@ -100,13 +114,14 @@ local function draw(hud, dt, unit, slot, hs, cs)
 	gui:move(g("Vector3")(0, 0, 0))
 end
 
-function M.install(active)
+-- active(): whether the bars show; numbers_on(): whether they show health as numbers too.
+function M.install(active, numbers_on)
 	local failed = false
 	obsidian.hook("Hud", "draw_hud", function(original, self, dt, unit, name, slot, screen_pos, health_state, inventory_state, character_state, ...)
 		local r = { original(self, dt, unit, name, slot, screen_pos, health_state, inventory_state, character_state, ...) }
 		-- The ship's HUD has cards too, with no health to show.
 		if active() and api.game.in_mission() then
-			local ok, err = pcall(draw, self, dt, unit, slot, health_state, character_state)
+			local ok, err = pcall(draw, self, dt, unit, slot, health_state, character_state, numbers_on and numbers_on())
 			if not ok and not failed then
 				failed = true
 				obsidian.log("betterhud: health bar: " .. tostring(err))
