@@ -34,7 +34,7 @@ if api.mod_settings then
 	toggle("player_health", "Player health bars", "A health bar under each player card, with a white chunk fading where health was lost.")
 	toggle("player_health_numbers", "Health numbers", "Current and maximum health on each player health bar.")
 	toggle("enemy_health", "Enemy health bars", "A bar over every enemy the player hits and every heavy that any player hurts.")
-	toggle("reload_circle", "Reload circle", "A ring over the player's Helldiver that fills while the weapon in hand reloads.")
+	toggle("reload_circle", "Reload circle", "A ring over each local player's Helldiver that fills while the weapon in hand reloads.")
 	toggle("hide_world_health", "Hide on-player health bar", "Hides the health bar the game draws over each Helldiver.")
 	toggle("hide_world_get_up", "Hide on-player recovery bar", "Hides the bar the game draws over a downed Helldiver getting back up.")
 	choice("damage_numbers", "Damage numbers", { { "off", "Off" }, { "enemies", "Enemies" }, { "players", "Players" }, { "both", "Both" } },

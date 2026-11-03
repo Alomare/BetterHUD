@@ -1,6 +1,6 @@
--- A ring over the player's Helldiver that fills while the weapon in hand reloads. Each weapon component
+-- A ring over each local player's Helldiver that fills while the weapon in hand reloads. Each weapon component
 -- that reloads counts reload_time down from reload_duration in the master state, which this machine
--- holds for its own player, and leaves reload_time below zero when it isn't reloading.
+-- holds for its own players, and leaves reload_time below zero when it isn't reloading.
 --
 -- Drawn on a kit with no frame, in screen pixels from the bottom left, as api.world.to_screen answers.
 local api = obsidian.import("obsidian.api")
@@ -70,29 +70,46 @@ function M.draw(kit, x, y, p, scale)
 	end
 end
 
+-- The Helldivers of the people playing on this machine: the first player and any local co-op players,
+-- whose weapons this machine runs. Bots made through Obsidian API are left out.
+local function local_players()
+	local bots = {}
+	if api.bots and api.bots.all then
+		for _, b in ipairs(api.bots.all()) do
+			local u = b:unit()
+			if u then bots[u] = true end
+		end
+	end
+	local out = {}
+	for _, p in ipairs(api.game.all_avatars() or {}) do
+		if p.owned and not bots[p.unit] then out[#out + 1] = p.unit end
+	end
+	return out
+end
+
 function M.install(active)
 	local kit = obsidian.ui.canvas("betterhud_reload", { layer = 420 })
 	local failed = false
 	obsidian.on_frame(function()
 		if not active() or not api.game.in_mission() then return end
 		local ok, err = pcall(function()
-			local unit = api.game.my_unit()
-			if not unit then return end
-			local p = weapon_progress(unit)
-			if not p then return end
 			local st = api.game.state()
 			local hud = st and st.hud
 			if (hud and (hud.hidden or hud.enabled == false)) or (api.map.is_open and api.map.is_open()) then return end
-			local at = g("Unit").world_position(unit, 0)
-			local V3 = g("Vector3")
-			local x, y, inside = api.world.to_screen({ x = V3.x(at), y = V3.y(at), z = V3.z(at) + HEAD })
-			if not (x and inside) then return end
 			local scale = hud and hud.hd_gui and hud.hd_gui.ui_scale
 			if not scale then
 				local _, h = g("Application").resolution()
 				scale = h / 720
 			end
-			M.draw(kit, x, y + ABOVE * scale, p, scale)
+			local V3 = g("Vector3")
+			for _, unit in ipairs(local_players()) do
+				local p = weapon_progress(unit)
+				if p then
+					local at = g("Unit").world_position(unit, 0)
+					local x, y, inside = api.world.to_screen({ x = V3.x(at), y = V3.y(at), z = V3.z(at) + HEAD })
+					if x and inside then M.draw(kit, x, y + ABOVE * scale, p, scale) end
+				end
+			end
 		end)
 		if not ok and not failed then
 			failed = true
