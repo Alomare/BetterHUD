@@ -1,0 +1,24 @@
+{
+  "obsidian": 1,
+  "id": "alomare.betterhud",
+  "version": "1.0.0",
+  "name": {
+    "en": "Better HUD"
+  },
+  "description": {
+    "en": "More on the HUD: rounds left in the magazine, a health bar under each player's card and health bars over enemies. Each one can be switched off in the pause menu's Mod Settings."
+  },
+  "authors": [
+    "Alomare"
+  ],
+  "scope": "client",
+  "entry": "main.lua",
+  "source": "https://github.com/Alomare/BetterHUD",
+  "modules": [
+    "src/ammo.lua"
+  ],
+  "requires": [
+    "obsidian.api"
+  ],
+  "loader_api": 1
+}
