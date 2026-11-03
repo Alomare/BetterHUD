@@ -16,7 +16,8 @@
   "source": "https://github.com/Alomare/BetterHUD",
   "modules": [
     "src/ammo.lua",
-    "src/health.lua"
+    "src/health.lua",
+    "src/enemies.lua"
   ],
   "requires": [
     "obsidian.api"
