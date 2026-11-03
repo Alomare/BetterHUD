@@ -1,7 +1,7 @@
--- A health bar under each player's card, as wide as the card, in missions: red for health, a white
--- stretch that lags behind a loss, dark red while downed and bleeding out, and none while dead. While
--- downed, a yellow bar half as tall shows how far getting back up has come. Remote players' hitpoints
--- are replicated, so every card has a health bar.
+-- A health bar under each player's card, as wide as the card, in missions: red for health, white
+-- chunks that fade out where health was lost, as the game's own bars do, dark red while downed and
+-- bleeding out, and none while dead. While downed, a yellow bar half as tall shows how far getting
+-- back up has come. Remote players' hitpoints are replicated, so every card has a health bar.
 --
 -- The cards sit along the bottom of the screen in the HUD's 1280x720 space, y up, each growing upward
 -- from y = 0 at Hud:get_player_hud_pos(slot) (hud.lua:1412). The space just under a card is empty.
@@ -14,29 +14,31 @@ local function g(name) return rawget(_G, name) end
 local HEIGHT = 9 -- design units
 local GAP = 3 -- between the card's bottom and the bar
 local Z = 20
-local HOLD = 1 -- seconds the lag stays where it was before draining
-local DRAIN = 0.8 -- of the bar per second
+local CHUNK_LIFE, CHUNKS = 1, 5 -- a lost stretch fades out in this many seconds; this many at once
 
-local lags = {}
+local bars = {}
 
 local function clamp(x) return math.max(0, math.min(1, x)) end
 
--- The lag for one slot: where the bar was, held a moment after each loss, then draining down.
-local function lag_of(slot, pct, dt)
-	local s = lags[slot]
-	if not s or pct >= s.at then
-		s = { at = pct, hold = 0 }
-		lags[slot] = s
-		return pct
+-- Each loss leaves a white chunk where the health was, fading out, as the game's own bars do
+-- (hud.lua:461-476). A heal drops the chunks it covers.
+local function chunks_of(slot, pct, dt)
+	local b = bars[slot]
+	if not b then
+		b = { pct = pct, chunks = {} }
+		bars[slot] = b
 	end
-	if pct < (s.last or pct) then s.hold = HOLD end
-	s.last = pct
-	if s.hold > 0 then
-		s.hold = s.hold - dt
-	else
-		s.at = math.max(pct, s.at - DRAIN * dt)
+	if pct < b.pct - 1e-4 then
+		table.insert(b.chunks, { from = pct, to = b.pct, life = CHUNK_LIFE })
+		if #b.chunks > CHUNKS then table.remove(b.chunks, 1) end
 	end
-	return s.at
+	for i = #b.chunks, 1, -1 do
+		local c = b.chunks[i]
+		c.life = c.life - dt
+		if c.life <= 0 or pct >= c.to then table.remove(b.chunks, i) else c.from = math.max(c.from, pct) end
+	end
+	b.pct = pct
+	return b.chunks
 end
 
 local DEAD_STATES = { dead = true, countdown = true, wait_for_spawn = true }
@@ -45,7 +47,7 @@ local DEAD_STATES = { dead = true, countdown = true, wait_for_spawn = true }
 -- red (hud_settings.lua) with a lighter top edge.
 local BACK, TRACK = { 170, 22, 24, 26 }, { 200, 8, 9, 10 }
 local RED, RED_TOP = { 255, 255, 55, 25 }, { 255, 255, 130, 95 }
-local LAG, DOWNED = { 230, 255, 255, 255 }, { 255, 130, 20, 15 }
+local LAG, DOWNED = { 255, 255, 255 }, { 255, 130, 20, 15 }
 local YELLOW, YELLOW_TOP = { 255, 255, 190, 17 }, { 255, 255, 225, 120 }
 
 local function rect(gui, x, y, z, w, h, c)
@@ -67,7 +69,7 @@ local function draw(hud, dt, unit, slot, hs, cs)
 	if not (info and gui) or hud.hidden or hud.enabled == false then return end
 	-- A dead player has no bar.
 	if not unit or not hs or hs.is_dead or DEAD_STATES[info.state] then
-		lags[slot] = nil
+		bars[slot] = nil
 		return
 	end
 	local w = (info.width or 248) + 2
@@ -78,13 +80,14 @@ local function draw(hud, dt, unit, slot, hs, cs)
 		local hp = hs.hitpoints or max
 		if hp > 0 then
 			local pct = clamp(hp / max)
-			local lag = lag_of(slot, pct, dt or 0)
 			bar(gui, x, y, w, HEIGHT, pct, RED, RED_TOP)
-			if lag > pct then rect(gui, x + w * pct, y, Z + 2, w * (lag - pct), HEIGHT, LAG) end
+			for _, c in ipairs(chunks_of(slot, pct, dt or 0)) do
+				rect(gui, x + w * c.from, y, Z + 2, w * (c.to - c.from), HEIGHT, { math.floor(230 * c.life / CHUNK_LIFE), LAG[1], LAG[2], LAG[3] })
+			end
 		else
 			-- Downed: what's left of the bleed-out pool, constitution being negative, and below it how
 			-- far getting up has come.
-			lags[slot] = nil
+			bars[slot] = nil
 			local pool = -(hs.constitution or -100)
 			bar(gui, x, y, w, HEIGHT, pool > 0 and clamp((hp + pool) / pool) or 0, DOWNED)
 			local need = cs and tonumber(cs.get_up_presses_needed)
