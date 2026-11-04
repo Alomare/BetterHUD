@@ -1,7 +1,8 @@
--- Damage numbers: a number where damage lands, rising a little and fading out. Damage to enemies is what
--- this machine's players deal (Obsidian API's combat.on_hit, 1.14.0); damage to players is what their
--- replicated health loses. Stacked: a number for each hit. Accumulated: hits on one target less than
--- WINDOW seconds apart add up into one number, which then rises and fades.
+-- Damage numbers: a number where damage lands. Damage to enemies is what this machine's players deal
+-- (Obsidian API's combat.on_hit, 1.14.0); damage to players is what their replicated health loses.
+-- Stacked: a number for each hit, which starts rising at once, fastest at the start, so the next one has
+-- room. Accumulated: one number for each target that stays in place, adds every hit while it shows, and
+-- fades out HOLD seconds after the last; the next hit after it has gone starts a new one.
 --
 -- Drawn on a kit with no frame, in screen pixels from the bottom left, as api.world.to_screen answers.
 local api = obsidian.import("obsidian.api")
@@ -11,50 +12,67 @@ local M = {}
 
 local function g(name) return rawget(_G, name) end
 
-M.WINDOW = 0.3 -- seconds between hits that still add up
-local LIFE, RISE = 0.9, 26 -- seconds a number lasts once released; design units it climbs
+M.LIFE, M.RISE = 0.9, 30 -- stacked: seconds a number lasts; design units it climbs
+M.HOLD, M.FADE = 0.7, 0.5 -- accumulated: seconds at full strength after the last hit; seconds to fade out
 local SIZE = 15 -- design units
 local SIDE = 16 -- design units right of the entity, for "next to the entity"
 local LIMIT = 48
-local ENEMY_INK, PLAYER_INK = { 236, 236, 236 }, { 255, 95, 75 }
+local ENEMY_INK, PLAYER_INK = { 255, 255, 255 }, { 255, 95, 75 }
 
 local live = {}
 local open = setmetatable({}, { __mode = "k" })
 local last_hp = setmetatable({}, { __mode = "k" })
 
+-- Whether a number has fully gone at time `now`.
+function M.done(n, now)
+	if n.gone then return true end
+	if n.mode == "accumulated" then return now - n.last >= M.HOLD + M.FADE end
+	return now - n.born >= M.LIFE
+end
+
 -- A new hit on `unit` worth `amount` at time `now`. kind: "enemy" or "player". at: where it landed, or nil.
 -- mode: "stacked" or "accumulated". Answers the number it went into.
 function M.add(list, opened, unit, amount, kind, at, mode, now)
 	if amount <= 0 then return nil end
-	if mode == "accumulated" then
+	local accumulated = mode == "accumulated"
+	if accumulated then
 		local n = opened[unit]
-		if n and not n.released and now - n.last <= M.WINDOW then
+		if n and n.mode == "accumulated" and not M.done(n, now) then
 			n.amount, n.last = n.amount + amount, now
 			return n
 		end
 	end
-	local n = { unit = unit, amount = amount, kind = kind, at = at, born = now, last = now, released = mode ~= "accumulated" and now or nil,
-		jitter = (#list % 5 - 2) * 6 }
+	local n = { unit = unit, amount = amount, kind = kind, at = at, born = now, last = now,
+		mode = accumulated and "accumulated" or "stacked", jitter = (#list % 5 - 2) * 6 }
 	list[#list + 1] = n
-	if mode == "accumulated" then opened[unit] = n end
-	while #list > LIMIT do table.remove(list, 1) end
+	if accumulated then opened[unit] = n end
+	while #list > LIMIT do
+		table.remove(list, 1).gone = true
+	end
 	return n
 end
 
--- Lets accumulated numbers go once no hit has added to them for WINDOW seconds, and drops the finished.
+-- Drops the numbers that have gone.
 function M.step(list, now)
 	for i = #list, 1, -1 do
 		local n = list[i]
-		if not n.released and now - n.last > M.WINDOW then n.released = now end
-		if n.released and now - n.released >= LIFE then table.remove(list, i) end
+		if M.done(n, now) then
+			n.gone = true
+			table.remove(list, i)
+		end
 	end
 end
 
 -- How far it has risen (0 to 1) and how visible it is.
 function M.look(n, now)
-	if not n.released then return 0, 1 end
-	local f = math.min(1, (now - n.released) / LIFE)
-	local rise = 1 - (1 - f) * (1 - f)
+	if n.mode == "accumulated" then
+		local idle = now - n.last
+		if idle <= M.HOLD then return 0, 1 end
+		return 0, math.max(0, 1 - (idle - M.HOLD) / M.FADE)
+	end
+	local f = math.max(0, math.min(1, (now - n.born) / M.LIFE))
+	local left = 1 - f
+	local rise = 1 - left * left * left
 	local alpha = f < 0.45 and 1 or math.max(0, 1 - (f - 0.45) / 0.55)
 	return rise, alpha
 end
@@ -76,21 +94,25 @@ local function screen_of(n, position, scale)
 	return x + SIDE * scale, y, inside
 end
 
--- A number with a faint dark outline under it, so it stays readable on snow, sand and explosions, in
--- the HUD's own font: Handel Gothic (fonts/handel_normal), which the HUD's numbers use through
--- set_current_font("body_large") (hud.lua, font_settings.lua). The kit draws text one layer over its
--- own, so the outline sits on the layer below the number.
+-- A number in the look of Helldivers Arcade's stats under the player cards (cards.stat_line there): the
+-- HUD's own font, Handel Gothic (fonts/handel_normal, "body_large", as hud.lua and font_settings.lua use
+-- it), with the game's hard drop shadow down and to the right. The kit draws text one layer over the layer set,
+-- so the shadow sits on the layer below the number.
 M.FONT = "body_large"
-local OUTLINE = { 10, 10, 10, 94 }
-local AROUND = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 0.7, 0.7 }, { -0.7, 0.7 }, { 0.7, -0.7 }, { -0.7, -0.7 } }
+local SHADOW = { 0, 0, 0, 192 }
 
-function M.draw_number(kit, text, x, y, size, ink, scale)
+-- How far the shadow sits from the number, in pixels, for a number `size` pixels tall.
+function M.shadow_offset(size)
+	return math.max(2, math.floor(size / 14))
+end
+
+function M.draw_number(kit, text, x, y, size, ink)
 	local base = kit:layer()
 	local opts = { font = M.FONT, size = size, align = "center" }
+	local d = M.shadow_offset(size)
 	kit:layer(base - 1)
-	opts.color = OUTLINE
-	local d = 1.3 * scale
-	for _, o in ipairs(AROUND) do kit:text(text, x + o[1] * d, y + o[2] * d, opts) end
+	opts.color = SHADOW
+	kit:text(text, x + d, y - d, opts)
 	kit:layer(base)
 	opts.color = ink
 	kit:text(text, x, y, opts)
@@ -129,7 +151,10 @@ function M.install(which, mode, position)
 		local dt = rawget(_G, "ENGINE_DT") or 0.016
 		clock = clock + dt
 		if which() == "off" or not api.game.in_mission() then
-			if #live > 0 then live = {} end
+			if #live > 0 then
+				for _, n in ipairs(live) do n.gone = true end
+				live = {}
+			end
 			return
 		end
 		local ok, err = pcall(function()
@@ -149,9 +174,9 @@ function M.install(which, mode, position)
 				if x and inside then
 					local rise, alpha = M.look(n, clock)
 					local ink = n.kind == "player" and PLAYER_INK or ENEMY_INK
+					local spread = (where == "hit" and n.mode == "stacked") and n.jitter * scale or 0
 					kit:opacity(alpha)
-					M.draw_number(kit, tostring(math.floor(n.amount + 0.5)), x + n.jitter * scale * (where == "hit" and 1 or 0), y + rise * RISE * scale,
-						SIZE * scale, ink, scale)
+					M.draw_number(kit, tostring(math.floor(n.amount + 0.5)), x + spread, y + rise * M.RISE * scale, SIZE * scale, ink)
 				end
 			end
 			kit:opacity(1)

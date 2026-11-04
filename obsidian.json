@@ -1,12 +1,12 @@
 {
   "obsidian": 1,
   "id": "alomare.betterhud",
-  "version": "1.7.1",
+  "version": "1.8.0",
   "name": {
     "en": "Better HUD"
   },
   "description": {
-    "en": "More on the HUD: rounds left in the magazine, a health bar under each player's card, health bars over enemies, damage numbers and a reload circle. Each one can be switched off in the pause menu's Mod Settings."
+    "en": "More on the HUD: rounds left in the magazine, a health bar under each player's card, health bars over enemies, damage numbers, and a reload circle and an ammo circle beside the Helldiver. Each part is an option here and a row on the pause menu's Mods page, and a change in one place shows in the other."
   },
   "authors": [
     "Alomare"
@@ -15,15 +15,55 @@
   "entry": "main.lua",
   "source": "https://github.com/Alomare/BetterHUD",
   "modules": [
+    "src/settings.lua",
     "src/ammo.lua",
     "src/health.lua",
     "src/enemies.lua",
     "src/world_bars.lua",
     "src/numbers.lua",
+    "src/ammo_circle.lua",
     "src/reload.lua"
   ],
   "requires": [
     "obsidian.api"
   ],
-  "loader_api": 1
+  "loader_api": 1,
+  "options": [
+    { "id": "ammo", "type": "toggle", "default": true,
+      "label": { "en": "Ammo counter" },
+      "description": { "en": "Rounds left in the magazine, over the magazine count, for weapons that fire rounds. Hidden while calling a stratagem." } },
+    { "id": "player_health", "type": "toggle", "default": true,
+      "label": { "en": "Player health bars" },
+      "description": { "en": "A red bar under each player card, with a white chunk fading where health was lost and a yellow bar over it while a shield holds." } },
+    { "id": "player_health_numbers", "type": "toggle", "default": false,
+      "label": { "en": "Health numbers" },
+      "description": { "en": "Current and maximum health at the left of each player bar." } },
+    { "id": "enemy_health", "type": "toggle", "default": true,
+      "label": { "en": "Enemy health bars" },
+      "description": { "en": "A bar over every enemy the player hits and every heavy that any player hurts." } },
+    { "id": "reload_circle", "type": "toggle", "default": true,
+      "label": { "en": "Reload circle" },
+      "description": { "en": "A ring to the right of each local Helldiver that fills while the weapon in hand reloads." } },
+    { "id": "ammo_circle", "type": "toggle", "default": true,
+      "label": { "en": "Ammo circle" },
+      "description": { "en": "A yellow ring beside each local Helldiver with the share of the magazine or charge left. Empty, the ring flashes red, with the reload button inside for weapons that fire rounds. Fades out 8 seconds after the last shot." } },
+    { "id": "hide_world_health", "type": "toggle", "default": false,
+      "label": { "en": "Hide on-player health bar" },
+      "description": { "en": "Takes away the game's own red bar over each Helldiver." } },
+    { "id": "hide_world_get_up", "type": "toggle", "default": false,
+      "label": { "en": "Hide on-player recovery bar" },
+      "description": { "en": "Takes away the game's own bar over a downed Helldiver getting back up." } },
+    { "id": "damage_numbers", "type": "choice", "default": "both",
+      "choices": [ { "id": "off", "label": { "en": "Off" } }, { "id": "enemies", "label": { "en": "Enemies" } }, { "id": "players", "label": { "en": "Players" } }, { "id": "both", "label": { "en": "Both" } } ],
+      "label": { "en": "Damage numbers" },
+      "description": { "en": "The damage dealt, where it lands: on enemies the player hits, on players losing health, or both." } },
+    { "id": "damage_numbers_mode", "type": "choice", "default": "accumulated",
+      "choices": [ { "id": "stacked", "label": { "en": "Stacked" } }, { "id": "accumulated", "label": { "en": "Accumulated" } } ],
+      "label": { "en": "Damage numbers mode" },
+      "description": { "en": "Stacked shows a number for each hit, rising out of the way at once. Accumulated adds every hit on one target into one number that stays in place and fades out, and a new one starts only once it is gone." } },
+    { "id": "damage_numbers_position", "type": "choice", "default": "entity",
+      "choices": [ { "id": "entity", "label": { "en": "Next to the entity" } }, { "id": "bar", "label": { "en": "Above health bar" } }, { "id": "hit", "label": { "en": "At damage instance" } } ],
+      "label": { "en": "Damage numbers position" },
+      "description": { "en": "Above health bar needs Enemy health bars, and uses the entity spot where no bar shows. At damage instance uses the spot each hit landed." } }
+  ]
 }

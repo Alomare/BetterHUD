@@ -1,7 +1,8 @@
 -- A health bar under each player's card, as wide as the card, in missions: red for health, white
 -- chunks that fade out where health was lost, as the game's own bars do, a yellow shield bar over the
--- top half while a shield holds, crimson while downed and bleeding out, and none while dead. While downed, a yellow bar half as tall shows how far getting
--- back up has come. Remote players' hitpoints are replicated, so every card has a health bar.
+-- top half while a shield holds, crimson while downed and bleeding out, and none while dead. The health and
+-- shield fills darken a little from left to right. While downed, a yellow bar half as tall shows how far
+-- getting back up has come. Remote players' hitpoints are replicated, so every card has a health bar.
 --
 -- The cards sit along the bottom of the screen in the HUD's 1280x720 space, y up, each growing upward
 -- from y = 0 at Hud:get_player_hud_pos(slot) (hud.lua:1412). The space just under a card is empty.
@@ -71,6 +72,29 @@ local function rect(gui, x, y, z, w, h, c)
 	gui:rect(g("Vector3")(x, y, z), g("Vector2")(w, h), g("Color")(c[1], c[2], c[3], c[4]))
 end
 
+-- A soft shadow over a fill, from left to right: clear at the left end of the bar, darkest at the right end, in
+-- strips of black that get more opaque. Each strip: { from, to } as shares of the bar's width, and the
+-- black's alpha.
+M.SHADE_STRIPS, M.SHADE_MAX = 16, 72
+
+function M.shade_strips(n, max)
+	local out = {}
+	for i = 1, n do
+		out[i] = { from = (i - 1) / n, to = i / n, alpha = math.floor(max * (i - 0.5) / n + 0.5) }
+	end
+	return out
+end
+
+local SHADE = M.shade_strips(M.SHADE_STRIPS, M.SHADE_MAX)
+
+-- The shadow over the part of a bar `w` wide that a fill of `pct` covers.
+local function shade(gui, x, y, z, w, h, pct)
+	for _, s in ipairs(SHADE) do
+		if s.from >= pct then break end
+		rect(gui, x + w * s.from, y, z, w * (math.min(s.to, pct) - s.from), h, { s.alpha, 0, 0, 0 })
+	end
+end
+
 -- Health and the most it can be, inside the bar at its left, in white over a shadow.
 local TEXT_SIZE = 10 -- design units, about the bar's height
 local TEXT_X, TEXT_Y = 4, 1.5 -- from the bar's bottom left to the words' baseline
@@ -80,16 +104,18 @@ local function numbers(gui, x, y, hp, max)
 	local text = string.format("%d / %d", math.ceil(hp), math.floor(max + 0.5))
 	local V3, C = g("Vector3"), g("Color")
 	gui:set_current_font("body_large")
-	gui:text(text, V3(x + TEXT_X + 0.6, y + TEXT_Y - 0.6, Z + 7), C(SHADOW[1], SHADOW[2], SHADOW[3], SHADOW[4]), nil, TEXT_SIZE)
-	gui:text(text, V3(x + TEXT_X, y + TEXT_Y, Z + 8), C(INK[1], INK[2], INK[3], INK[4]), nil, TEXT_SIZE)
+	gui:text(text, V3(x + TEXT_X + 0.6, y + TEXT_Y - 0.6, Z + 9), C(SHADOW[1], SHADOW[2], SHADOW[3], SHADOW[4]), nil, TEXT_SIZE)
+	gui:text(text, V3(x + TEXT_X, y + TEXT_Y, Z + 10), C(INK[1], INK[2], INK[3], INK[4]), nil, TEXT_SIZE)
 end
 
--- A bar at x, y (its bottom left): backing, track, then a fill of `pct` with its top edge.
-local function bar(gui, x, y, w, h, pct, fill, top)
+-- A bar at x, y (its bottom left): backing, track, then a fill of `pct` with a lighter top edge, and with
+-- `shaded`, the shadow over the fill.
+local function bar(gui, x, y, w, h, pct, fill, top, shaded)
 	rect(gui, x - 1, y - 1, Z, w + 2, h + 2, BACK)
 	rect(gui, x, y, Z + 1, w, h, TRACK)
 	rect(gui, x, y, Z + 3, w * pct, h, fill)
 	if top then rect(gui, x, y + h - 1, Z + 4, w * pct, 1, top) end
+	if shaded then shade(gui, x, y, Z + 5, w, h, pct) end
 end
 
 -- The card keeps the player's shield state (Hud.update_and_draw_hud); a unit without one has none.
@@ -117,7 +143,7 @@ local function draw(hud, dt, unit, slot, hs, cs, show_numbers)
 		local hp = hs.hitpoints or max
 		if hp > 0 then
 			local pct = clamp(hp / max)
-			bar(gui, x, y, w, HEIGHT, pct, RED, RED_TOP)
+			bar(gui, x, y, w, HEIGHT, pct, RED, RED_TOP, true)
 			for _, c in ipairs(chunks_of(slot, pct, dt or 0)) do
 				rect(gui, x + w * c.from, y, Z + 2, w * (c.to - c.from), HEIGHT, { math.floor(230 * c.life / CHUNK_LIFE), LAG[1], LAG[2], LAG[3] })
 			end
@@ -125,8 +151,9 @@ local function draw(hud, dt, unit, slot, hs, cs, show_numbers)
 			local fill = ok and M.shield_fill(ss)
 			if fill then
 				local h = HEIGHT * SHIELD_HEIGHT
-				rect(gui, x, y + HEIGHT - h, Z + 5, w * fill, h, SHIELD)
-				rect(gui, x, y + HEIGHT - 1, Z + 6, w * fill, 1, SHIELD_TOP)
+				rect(gui, x, y + HEIGHT - h, Z + 6, w * fill, h, SHIELD)
+				rect(gui, x, y + HEIGHT - 1, Z + 7, w * fill, 1, SHIELD_TOP)
+				shade(gui, x, y + HEIGHT - h, Z + 8, w, h, fill)
 			end
 			if show_numbers then numbers(gui, x, y, hp, max) end
 		else
@@ -134,7 +161,7 @@ local function draw(hud, dt, unit, slot, hs, cs, show_numbers)
 			-- far getting up has come.
 			bars[slot] = nil
 			local pool = -(hs.constitution or -100)
-			bar(gui, x, y, w, HEIGHT, pool > 0 and clamp((hp + pool) / pool) or 0, DOWNED)
+			bar(gui, x, y, w, HEIGHT, pool > 0 and clamp((hp + pool) / pool) or 0, DOWNED, nil, true)
 			local need = cs and tonumber(cs.get_up_presses_needed)
 			if need and need > 0 then
 				local h = HEIGHT / 2

@@ -6,3 +6,4 @@
 .gitignore export-ignore
 internal export-ignore
 README.md export-ignore
+tests export-ignore
