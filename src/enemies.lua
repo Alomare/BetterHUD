@@ -34,16 +34,17 @@ M.EDGE = 8 -- design units between the screen's edge and a bar held there
 -- By max health: width and height in HUD design units, and how high over the enemy's root when its
 -- bounding box can't be read.
 local TIERS = {
-	{ hp = 0, w = 40, h = 8.2, lift = 2.2 },
-	{ hp = 400, w = 53, h = 10.8, lift = 2.5 },
-	{ hp = 1500, w = 67, h = 13.2, lift = 3.6 },
-	{ hp = 5000, w = 80, h = 16.6, lift = 8.0 },
+	{ hp = 0, w = 40, h = 4.1, lift = 2.2 },
+	{ hp = 400, w = 53, h = 5.4, lift = 2.5 },
+	{ hp = 1500, w = 67, h = 6.6, lift = 3.6 },
+	{ hp = 5000, w = 80, h = 8.3, lift = 8.0 },
 }
 M.TIERS = TIERS
 local LIFT = 13 -- design units between the anchor and the bar
 
 local BACK = "#0d0d0d42"
 local OUTLINE = "#00000063"
+M.OUTLINE_PX = 2 -- the black outline around a bar, in pixels
 -- Health by faction.
 local FACTIONS = { bugs = "#ff8c14e6", cyborgs = "#e1281ee6", illuminates = "#a046e6e6" }
 local OTHER = "#ff3719e6"
@@ -245,19 +246,19 @@ local function draw_bar(kit, b, now, scale)
 	local sx, sy, inside = api.world.to_screen(b.anchor)
 	if not sx then return end
 	local t = tier(b.max)
-	local w, h = t.w * scale, math.max(4, t.h * scale)
+	local w, h = t.w * scale, math.max(2, t.h * scale)
 	local x, y = sx - w / 2, sy + LIFT * scale
 	if not inside then
 		-- Out of view: held on the nearest edge, clear of it by EDGE and the status outline.
 		if behind(b.anchor) then return end
 		local sw, sh = g("Application").resolution()
-		local margin = M.EDGE * scale + math.max(2, RING * scale) + 1
+		local margin = M.EDGE * scale + math.max(2, RING * scale) + M.OUTLINE_PX
 		x, y = M.pin(x, y, w, h, sw, sh, margin)
 	end
 	kit:opacity(alpha_of(b, now) * M.OPACITY)
 	M.drawn[unit] = { x = x + w / 2, y = y + h, pinned = not inside }
 	if b.dead then
-		kit:rect(x - 1, y - 1, w + 2, h + 2, OUTLINE)
+		kit:rect(x - M.OUTLINE_PX, y - M.OUTLINE_PX, w + 2 * M.OUTLINE_PX, h + 2 * M.OUTLINE_PX, OUTLINE)
 		kit:rect(x, y, w, h, DEATH)
 		return
 	end
@@ -269,13 +270,14 @@ local function draw_bar(kit, b, now, scale)
 	if ring then
 		local pulse = 0.5 - 0.5 * math.cos(2 * math.pi * now / 0.7)
 		local r, c = math.max(2, RING * scale), rgba(ring, 0.45 + 0.45 * pulse)
-		local left, bottom, ow, oh = x - 1 - r, y - 1 - r, w + 2 + r * 2, h + 2 + r * 2
+		local o = M.OUTLINE_PX
+		local left, bottom, ow, oh = x - o - r, y - o - r, w + 2 * o + r * 2, h + 2 * o + r * 2
 		kit:rect(left, bottom, ow, r, c)
 		kit:rect(left, bottom + oh - r, ow, r, c)
 		kit:rect(left, bottom + r, r, oh - r * 2, c)
 		kit:rect(left + ow - r, bottom + r, r, oh - r * 2, c)
 	end
-	kit:rect(x - 1, y - 1, w + 2, h + 2, OUTLINE)
+	kit:rect(x - M.OUTLINE_PX, y - M.OUTLINE_PX, w + 2 * M.OUTLINE_PX, h + 2 * M.OUTLINE_PX, OUTLINE)
 	kit:rect(x, y, w, h, BACK)
 	local pct = b.pct
 	local lag = M.lag_alpha(b.lag, now)

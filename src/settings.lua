@@ -17,7 +17,7 @@ M.ROWS = {
 	{ id = "player_health", kind = "toggle", default = true, label = "Player health bars",
 		info = "A red bar under each player card, with a white chunk fading where health was lost and a yellow bar over it while a shield holds." },
 	{ id = "player_health_numbers", kind = "toggle", default = false, label = "Health numbers",
-		info = "Current and maximum health at the left of each player bar." },
+		info = "Current and maximum health at the right of each player bar." },
 	{ id = "enemy_health", kind = "toggle", default = true, label = "Enemy health bars",
 		info = "A bar over every enemy the player hits and every heavy that any player hurts. The bar of an enemy out of view waits at the edge of the screen." },
 	{ id = "reload_circle", kind = "toggle", default = true, label = "Reload circle",

@@ -1,7 +1,7 @@
 {
   "obsidian": 1,
   "id": "alomare.betterhud",
-  "version": "1.12.0",
+  "version": "1.12.1",
   "name": {
     "en": "Better HUD"
   },
@@ -43,7 +43,7 @@
       "description": { "en": "A red bar under each player card, with a white chunk fading where health was lost and a yellow bar over it while a shield holds.", "pt-BR": "Uma barra vermelha sob o cartão de cada jogador, com um trecho branco que some onde a vida foi perdida e uma barra amarela por cima enquanto um escudo resiste.", "zh-CN": "每张玩家卡片下方的红色条，损失生命处会有渐隐的白色片段，护盾生效时上方会叠加一条黄色条。", "fr": "Une barre rouge sous la carte de chaque joueur, avec un morceau blanc qui s'efface là où la vie a été perdue, et une barre jaune par-dessus tant qu'un bouclier tient.", "es": "Una barra roja bajo la tarjeta de cada jugador, con un trozo blanco que se desvanece donde se perdió salud y una barra amarilla encima mientras aguanta un escudo." } },
     { "id": "player_health_numbers", "type": "toggle", "default": false,
       "label": { "en": "Health numbers", "pt-BR": "Números de vida", "zh-CN": "生命数值", "fr": "Chiffres de vie", "es": "Números de salud" },
-      "description": { "en": "Current and maximum health at the left of each player bar.", "pt-BR": "Vida atual e máxima à esquerda de cada barra de jogador.", "zh-CN": "在每条玩家生命条左侧显示当前和最大生命值。", "fr": "Vie actuelle et maximale à gauche de chaque barre de joueur.", "es": "Salud actual y máxima a la izquierda de cada barra de jugador." } },
+      "description": { "en": "Current and maximum health at the right of each player bar.", "pt-BR": "Vida atual e máxima à direita de cada barra de jogador.", "zh-CN": "在每条玩家生命条右侧显示当前和最大生命值。", "fr": "Vie actuelle et maximale à droite de chaque barre de joueur.", "es": "Salud actual y máxima a la derecha de cada barra de jugador." } },
     { "id": "enemy_health", "type": "toggle", "default": true,
       "label": { "en": "Enemy health bars", "pt-BR": "Barras de vida dos inimigos", "zh-CN": "敌人生命条", "fr": "Barres de vie des ennemis", "es": "Barras de salud de los enemigos" },
       "description": { "en": "A bar over every enemy the player hits and every heavy that any player hurts. The bar of an enemy out of view waits at the edge of the screen.", "pt-BR": "Uma barra sobre cada inimigo que o jogador acerta e cada inimigo pesado que qualquer jogador fere. A barra de um inimigo fora de vista fica na borda da tela.", "zh-CN": "玩家击中的每个敌人，以及任何玩家伤到的每个重型敌人，头顶都会显示一条生命条。视野外敌人的生命条停在屏幕边缘。", "fr": "Une barre au-dessus de chaque ennemi touché par le joueur et de chaque ennemi lourd blessé par n'importe quel joueur. La barre d'un ennemi hors de vue attend au bord de l'écran.", "es": "Una barra sobre cada enemigo al que da el jugador y cada enemigo pesado al que hiera cualquier jugador. La barra de un enemigo fuera de la vista espera en el borde de la pantalla." } },

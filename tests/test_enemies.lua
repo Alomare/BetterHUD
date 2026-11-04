@@ -37,9 +37,10 @@ return {
 		eq(b.lag, nil, "healed")
 	end },
 
-	{ "bars twice as thick as in 1.8, and a little see-through", function()
+	{ "bars as tall as in 1.8, with an outline twice as thick, and a little see-through", function()
 		local old = { 4.1, 5.4, 6.6, 8.3 }
-		for i, t in ipairs(enemies.TIERS) do near(t.h, old[i] * 2, "tier " .. i) end
+		for i, t in ipairs(enemies.TIERS) do near(t.h, old[i], "tier " .. i) end
+		eq(enemies.OUTLINE_PX, 2, "outline pixels")
 		eq(enemies.OPACITY < 1 and enemies.OPACITY >= 0.75, true, "slightly less opaque")
 	end },
 

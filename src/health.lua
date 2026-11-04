@@ -104,17 +104,20 @@ local function shade(gui, x, y, z, w, h, pct)
 	end
 end
 
--- Health and the most it can be, inside the bar at its left, in white over a shadow.
+-- Health and the most it can be, inside the bar against the right end, in white over a shadow.
 local TEXT_SIZE = 10 -- design units, about the bar's height
-local TEXT_X, TEXT_Y = 4, 1.5 -- from the bar's bottom left to the words' baseline
+local TEXT_X, TEXT_Y = 4, 1.5 -- from the bar's bottom right to the end of the words, and to their baseline
 local INK, SHADOW = { 255, 255, 255, 255 }, { 210, 0, 0, 0 }
 
-local function numbers(gui, x, y, hp, max)
+local function numbers(gui, right, y, hp, max)
 	local text = string.format("%d / %d", math.ceil(hp), math.floor(max + 0.5))
 	local V3, C = g("Vector3"), g("Color")
 	gui:set_current_font("body_large")
-	gui:text(text, V3(x + TEXT_X + 0.6, y + TEXT_Y - 0.6, Z + 9), C(SHADOW[1], SHADOW[2], SHADOW[3], SHADOW[4]), nil, TEXT_SIZE)
-	gui:text(text, V3(x + TEXT_X, y + TEXT_Y, Z + 10), C(INK[1], INK[2], INK[3], INK[4]), nil, TEXT_SIZE)
+	-- The extents come in pixels, as in src/ammo.lua.
+	local ok, width = pcall(gui.get_text_extents, gui, text, nil, TEXT_SIZE)
+	local x = right - TEXT_X - ((ok and tonumber(width) or 0) / (tonumber(gui.ui_scale) or 1))
+	gui:text(text, V3(x + 0.6, y + TEXT_Y - 0.6, Z + 9), C(SHADOW[1], SHADOW[2], SHADOW[3], SHADOW[4]), nil, TEXT_SIZE)
+	gui:text(text, V3(x, y + TEXT_Y, Z + 10), C(INK[1], INK[2], INK[3], INK[4]), nil, TEXT_SIZE)
 end
 
 -- The outline around a box from x, y (its bottom left), w by h, `t` design units thick, outside it.
@@ -176,7 +179,7 @@ local function draw(hud, dt, unit, slot, hs, cs, show_numbers)
 				rect(gui, x, y + HEIGHT - 1, Z + 7, w * fill, 1, SHIELD_TOP)
 				shade(gui, x, y + HEIGHT - h, Z + 8, w, h, fill)
 			end
-			if show_numbers then numbers(gui, x, y, hp, max) end
+			if show_numbers then numbers(gui, x + w, y, hp, max) end
 		else
 			-- Downed: what's left of the bleed-out pool, constitution being negative, and below it how
 			-- far getting up has come.
