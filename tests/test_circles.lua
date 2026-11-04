@@ -88,10 +88,18 @@ return {
 		eq(select(3, circle.look("beamweapon", 0.5, false, true)), circle.WARN, "cooling after an overheat")
 	end },
 
-	{ "look: an arc weapon is blue", function()
-		local fill, ccw, color = circle.look("arcweapon", 0.6, false, false)
-		near(fill, 0.6, "share left") eq(ccw, false, "clockwise") eq(color, circle.ARC, "blue")
+	{ "look: an arc weapon's ring fills with the charge, bright once it can fire", function()
+		local fill, ccw, color = circle.look("arcweapon", 0.6, false, false, nil, 0.3)
+		near(fill, 0.4, "the charge") eq(ccw, false, "clockwise") eq(color, circle.ARC, "past what it fires at")
 		eq(circle.ARC[3] > circle.ARC[1], true, "blue")
+		eq(select(3, circle.look("arcweapon", 0.8, false, false, nil, 0.3)), circle.ARC_LOW, "not enough to fire yet")
+		eq(select(3, circle.look("arcweapon", 0.7, false, false, nil, 0.3)), circle.ARC, "just enough")
+	end },
+
+	{ "reading: a full arc charge is ready, not empty", function()
+		local share, rounds, empty, size, ready = circle.reading({ heat = 1, min_heat_to_fire = 0.25 })
+		near(share, 0) eq(rounds, false) eq(empty, false, "no flashing at full charge") eq(size, nil) near(ready, 0.25)
+		eq(select(3, circle.reading({ heat = 1 })), true, "a laser at full heat overheats")
 	end },
 
 	{ "after a reload the ammo circle hides until the next shot", function()

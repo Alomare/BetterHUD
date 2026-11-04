@@ -229,7 +229,7 @@ function M.install(reload_on, ammo_on)
 					if grow then p = 1 else done[unit] = nil end
 				end
 				if not show_reload then p = nil end
-				local share, rounds, empty, size = ammo_circle.reading(state)
+				local share, rounds, empty, size, ready = ammo_circle.reading(state)
 				if share then ammo_circle.track(t, weapon, share, clock, reloading) end
 				local ammo_alpha = (show_ammo and share and not reloading and not p) and ammo_circle.alpha(t.shot, clock) or 0
 				if not hidden and (p or ammo_alpha > 0) then
@@ -242,7 +242,7 @@ function M.install(reload_on, ammo_on)
 							M.draw(kit, cx, cy, p, scale * grow)
 						else
 							kit:opacity(ammo_alpha)
-							local fill, ccw, color, segments = ammo_circle.look(kind, share, rounds, empty, size)
+							local fill, ccw, color, segments = ammo_circle.look(kind, share, rounds, empty, size, ready)
 							M.draw(kit, cx, cy, fill, scale, { fill = color, ccw = ccw, size = segments,
 								track = empty and ammo_circle.flash(clock) or nil })
 							if empty and rounds then

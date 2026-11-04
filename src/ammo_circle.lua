@@ -1,7 +1,8 @@
 -- The ammo circle: the reload circle's ring (src/reload.lua draws both, in the same spot). For a weapon
 -- that fires rounds, a yellow ring filled with the share of the magazine left, cut into a segment for
 -- each round, and red below a tenth. For a laser, a ring that fills counter-clockwise with heat, red past
--- nine tenths. For an arc weapon, a blue ring with the share of heat left. Empty, the dark track flashes
+-- nine tenths. For an arc weapon, a blue ring that fills with the charge while the trigger is held, dim
+-- until the charge is enough to fire and bright from there. Empty, the dark track flashes
 -- between black and a dark red, and a weapon that fires rounds shows the reload button in the middle.
 -- The ring shows from a shot on, and fades out FADE seconds once SHOW seconds have passed without one.
 -- A finished reload hides it until the next shot.
@@ -14,6 +15,7 @@ M.FLASH = 0.8 -- seconds from black to dark red and back, while empty
 -- The yellow of the game's shield bar (hud_settings.lua foreground_shield), the red of the warnings,
 -- and the blue of arc weapons.
 M.FILL, M.WARN, M.ARC = { 255, 190, 17, 255 }, { 230, 40, 28, 255 }, { 70, 150, 255, 255 }
+M.ARC_LOW = { 40, 82, 145, 255 } -- an arc weapon's charge below what it takes to fire
 M.LOW = 0.1 -- below this share of the magazine, the ring turns red
 M.HOT = 0.9 -- past this much heat, a laser's ring turns red
 M.MAX_SEGMENTS = 30 -- the most segments a ring is cut into; see segments
@@ -23,9 +25,11 @@ local INK = { 255, 255, 255, 255 }
 local function clamp(x) return math.max(0, math.min(1, x)) end
 
 -- What a weapon's state shows: the share left (0 to 1), whether it counts rounds, whether it's empty,
--- and for rounds the magazine's size. nil for a state with neither rounds nor heat. Firearms,
--- flamethrowers and launchers keep rounds and magazine_capacity; lasers and arc weapons keep heat from
--- 0 to 1 (beamweapon_component.lua, arcweapon_component.lua), and at 1 they overheat.
+-- for rounds the magazine's size, and for an arc weapon the charge it fires at. nil for a state with
+-- neither rounds nor heat. Firearms, flamethrowers and launchers keep rounds and magazine_capacity;
+-- lasers keep heat from 0 to 1 and overheat at 1 (beamweapon_component.lua). An arc weapon's heat is
+-- its charge: it rises while the trigger is held, up to 1, and the shot goes on release once it's at
+-- min_heat_to_fire (arcweapon_component.lua:215), so a full one is ready, not empty.
 function M.reading(state)
 	if type(state) ~= "table" then return nil end
 	local rounds, size = state.rounds, state.magazine_capacity
@@ -34,6 +38,9 @@ function M.reading(state)
 		return clamp(left / size), true, left <= 0, size
 	end
 	if type(state.heat) == "number" then
+		if type(state.min_heat_to_fire) == "number" then
+			return clamp(1 - state.heat), false, false, nil, clamp(state.min_heat_to_fire)
+		end
 		return clamp(1 - state.heat), false, state.heat >= 1 or state.overheated == true
 	end
 	return nil
@@ -63,7 +70,8 @@ end
 
 -- How the ring looks for a weapon component `kind` and its reading: how much of it is filled (0 to 1),
 -- whether it fills counter-clockwise, its color, and for rounds the magazine's size, for the dividers.
-function M.look(kind, share, rounds, empty, size)
+-- ready: an arc weapon's charge to fire at.
+function M.look(kind, share, rounds, empty, size, ready)
 	if rounds then
 		return share, false, share < M.LOW and M.WARN or M.FILL, size
 	end
@@ -71,7 +79,10 @@ function M.look(kind, share, rounds, empty, size)
 		local heat = 1 - share
 		return heat, true, (heat > M.HOT or empty) and M.WARN or M.FILL
 	end
-	if kind == "arcweapon" then return share, false, M.ARC end
+	if kind == "arcweapon" then
+		local charge = 1 - share
+		return charge, false, charge >= (ready or 0) - 1e-4 and M.ARC or M.ARC_LOW
+	end
 	return share, false, M.FILL
 end
 
