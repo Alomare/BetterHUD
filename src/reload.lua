@@ -4,13 +4,23 @@
 -- reload_time below zero when it isn't reloading.
 --
 -- The two never show at once: while the weapon reloads, and while a finished reload ring grows and fades,
--- the reload ring has the spot, and the ammo circle comes back after. With the reload circle off, the ammo
--- circle still steps aside while the weapon reloads, since the magazine it shows is on the way out.
+-- the reload ring has the spot. A finished reload hides the ammo circle until the next shot. With the
+-- reload circle off, the ammo circle still steps aside while the weapon reloads, since the magazine it
+-- shows is on the way out.
+--
+-- Both rings sit to the left of the Helldiver, a little over the chest, in one color each, with a soft
+-- shadow that is darkest at the bottom left and clears toward the top right.
 --
 -- Drawn on a kit with no frame, in screen pixels from the bottom left, as api.world.to_screen answers.
 -- Sizes are in the HUD's design units at 100% UI scale, times the HUD's scale: the resolution's scale
 -- times the UI scale setting (hd_gui.lua:27-32, SaveManager "ui_scale", 0.75 to 1).
 local api = obsidian.import("obsidian.api")
+
+-- Photo Mode (or any mod) clearing the screen for pictures through Obsidian API's photo effect.
+local function photo_mode()
+	local effects = api.effects
+	return effects ~= nil and effects.is_on ~= nil and effects.is_on("photo_mode") == true
+end
 local ammo_circle = obsidian.module("src/ammo_circle")
 
 local M = {}
@@ -19,12 +29,17 @@ local function g(name) return rawget(_G, name) end
 
 local KINDS = { "firearm", "flameweapon", "launcher", "beamweapon", "arcweapon" }
 local CHEST = 1.0 -- metres over the feet
-M.RIGHT = 42 -- design units right of the Helldiver
+M.LEFT = 42 -- design units left of the Helldiver
+M.UP = 8 -- design units over the chest
 local RADIUS, WIDTH = 11, 3.5 -- design units
 local EDGE = 1.5 -- design units of dark border around the track
-local SEGMENTS = 40
+local SEGMENTS = 64
 local TRACK, BORDER = { 30, 30, 30, 85 }, { 0, 0, 0, 100 }
-local FILL, LIT = { 212, 212, 212, 255 }, { 236, 236, 236, 255 }
+local FILL = { 212, 212, 212, 255 }
+-- The shadow: how much darker the fill gets at the bottom left, clearing toward the top right.
+M.SHADOW = 0.35
+-- The dividers between segments of the ammo circle: thin, see-through dark lines across the band.
+local DIVIDER, DIVIDER_WIDTH = { 0, 0, 0, 120 }, 0.5 -- color; design units across, at least a pixel
 local DONE = 0.1 -- seconds a finished ring takes to grow and fade out
 local GROW = 0.45 -- how much bigger it ends, of its size
 local NEAR_END = 0.85 -- a reload that stops past this far counts as finished, not cancelled
@@ -38,14 +53,14 @@ function M.progress(state)
 	return math.max(0, math.min(1, 1 - left / total))
 end
 
--- The weapon in hand and the master state of the component that fires it.
+-- The weapon in hand, the master state of the component that fires it, and that component's kind.
 local function weapon_state(unit)
 	local inv = g("EntityAux").state(unit, "inventory")
 	local weapon = inv and inv.current_weapon
 	if not weapon then return nil end
 	for _, kind in ipairs(KINDS) do
 		local state = api.game.master(weapon, kind)
-		if state then return weapon, state end
+		if state then return weapon, state, kind end
 	end
 	return weapon, nil
 end
@@ -56,14 +71,36 @@ local function arc(kit, x, y, r1, r2, a, b, color)
 	kit:poly({ x + s1 * r1, y + c1 * r1, x + s1 * r2, y + c1 * r2, x + s2 * r2, y + c2 * r2, x + s2 * r1, y + c2 * r1 }, color)
 end
 
-local function ring(kit, x, y, r1, r2, from, to, color)
+-- How dark the shadow is at angle `a` (clockwise from the top), from 0 at the top right to 1 at the
+-- bottom left.
+function M.shadow_at(a)
+	return (1 - (math.sin(a) + math.cos(a)) / math.sqrt(2)) / 2
+end
+
+-- `color` darkened by the shadow at angle `a`.
+function M.shaded(color, a)
+	local k = 1 - M.SHADOW * M.shadow_at(a)
+	return { math.floor(color[1] * k + 0.5), math.floor(color[2] * k + 0.5), math.floor(color[3] * k + 0.5), color[4] }
+end
+
+-- A band from angle `from` to `to`, in pieces of at most 1/SEGMENTS of a turn; with `shade`, each piece
+-- darkened by the shadow at its middle.
+local function ring(kit, x, y, r1, r2, from, to, color, shade)
 	local step = 2 * math.pi / SEGMENTS
 	local a = from
 	while a < to - 1e-6 do
 		local b = math.min(to, a + step)
-		arc(kit, x, y, r1, r2, a, b, color)
+		arc(kit, x, y, r1, r2, a, b, shade and M.shaded(color, (a + b) / 2) or color)
 		a = b
 	end
+end
+
+-- A thin line across the band at angle `a`, `half` pixels to each side.
+local function divider(kit, x, y, r1, r2, a, half, color)
+	local s, c = math.sin(a), math.cos(a)
+	local tx, ty = c * half, -s * half
+	kit:poly({ x + s * r1 - tx, y + c * r1 - ty, x + s * r2 - tx, y + c * r2 - ty,
+		x + s * r2 + tx, y + c * r2 + ty, x + s * r1 + tx, y + c * r1 + ty }, color)
 end
 
 -- Pixels a design unit: the resolution's scale times the UI scale setting.
@@ -89,8 +126,21 @@ function M.inner_radius(scale)
 	return (RADIUS - WIDTH) * scale
 end
 
--- The ring, filled `p` of the way round from the top. look: { fill, lit, track }, or nil for the
--- reload ring's grey.
+-- Where the dividers go for a magazine of `size`: the angles (clockwise from the top) between segments.
+function M.divider_angles(size)
+	local step, count = ammo_circle.segments(size)
+	if not step then return {} end
+	size = math.floor(size)
+	local out = {}
+	for i = 1, count - 1 do out[i] = 2 * math.pi * i * step / size end
+	-- The top, where the first segment starts and the last ends.
+	out[#out + 1] = 0
+	return out
+end
+
+-- The ring, filled `p` of the way round from the top, clockwise, or counter-clockwise with look.ccw.
+-- look: { fill, track, ccw, size }, or nil for the reload ring's grey; size: the magazine's size, for
+-- a divider between each segment.
 function M.draw(kit, x, y, p, scale, look)
 	local r2 = RADIUS * scale
 	local r1 = r2 - WIDTH * scale
@@ -101,10 +151,14 @@ function M.draw(kit, x, y, p, scale, look)
 	ring(kit, x, y, r1, r2, 0, 2 * math.pi, look and look.track or TRACK)
 	if p > 0 then
 		kit:layer(421)
-		ring(kit, x, y, r1, r2, 0, 2 * math.pi * p, look and look.fill or FILL)
-		-- A lighter inner half of the filled band, so the ring reads as shaded rather than flat.
+		local from, to = 0, 2 * math.pi * p
+		if look and look.ccw then from, to = 2 * math.pi * (1 - p), 2 * math.pi end
+		ring(kit, x, y, r1, r2, from, to, look and look.fill or FILL, true)
+	end
+	if look and look.size then
 		kit:layer(422)
-		ring(kit, x, y, r1 + (r2 - r1) * 0.5, r2, 0, 2 * math.pi * p, look and look.lit or LIT)
+		local half = math.max(1, DIVIDER_WIDTH * scale) / 2
+		for _, a in ipairs(M.divider_angles(look.size)) do divider(kit, x, y, r1, r2, a, half, DIVIDER) end
 	end
 end
 
@@ -142,7 +196,7 @@ function M.install(reload_on, ammo_on)
 	obsidian.on_frame(function()
 		clock = clock + (rawget(_G, "ENGINE_DT") or 0.016)
 		local show_reload, show_ammo = reload_on(), ammo_on()
-		if not (show_reload or show_ammo) or not api.game.in_mission() then return end
+		if not (show_reload or show_ammo) or not api.game.in_mission() or photo_mode() then return end
 		local ok, err = pcall(function()
 			local st = api.game.state()
 			local hud = st and st.hud
@@ -152,15 +206,22 @@ function M.install(reload_on, ammo_on)
 			local V3 = g("Vector3")
 			for _, player in ipairs(local_players()) do
 				local unit = player.unit
-				local weapon, state = weapon_state(unit)
+				local weapon, state, kind = weapon_state(unit)
 				local p = state and M.progress(state)
 				local reloading = p ~= nil
 				local was = last[unit]
 				last[unit] = p
+				-- The ammo circle follows every shot, shown or not, so it fades on time.
+				local t = shots[unit]
+				if not t then
+					t = {}
+					shots[unit] = t
+				end
 				if p then
 					done[unit] = nil
 				elseif was and was >= NEAR_END then
 					done[unit] = clock
+					ammo_circle.reloaded(t)
 				end
 				local grow, alpha = 1, 1
 				if not p and done[unit] then
@@ -168,30 +229,25 @@ function M.install(reload_on, ammo_on)
 					if grow then p = 1 else done[unit] = nil end
 				end
 				if not show_reload then p = nil end
-				-- The ammo circle follows every shot, shown or not, so it fades on time.
-				local t = shots[unit]
-				if not t then
-					t = {}
-					shots[unit] = t
-				end
-				local share, rounds, empty = ammo_circle.reading(state)
-				if share then ammo_circle.track(t, weapon, share, clock) end
+				local share, rounds, empty, size = ammo_circle.reading(state)
+				if share then ammo_circle.track(t, weapon, share, clock, reloading) end
 				local ammo_alpha = (show_ammo and share and not reloading and not p) and ammo_circle.alpha(t.shot, clock) or 0
 				if not hidden and (p or ammo_alpha > 0) then
 					local at = g("Unit").world_position(unit, 0)
 					local x, y, inside = api.world.to_screen({ x = V3.x(at), y = V3.y(at), z = V3.z(at) + CHEST })
 					if x and inside then
-						local cx = x + M.RIGHT * scale
+						local cx, cy = x - M.LEFT * scale, y + M.UP * scale
 						if p then
 							kit:opacity(alpha)
-							M.draw(kit, cx, y, p, scale * grow)
+							M.draw(kit, cx, cy, p, scale * grow)
 						else
 							kit:opacity(ammo_alpha)
-							M.draw(kit, cx, y, share, scale, { fill = ammo_circle.FILL, lit = ammo_circle.LIT,
+							local fill, ccw, color, segments = ammo_circle.look(kind, share, rounds, empty, size)
+							M.draw(kit, cx, cy, fill, scale, { fill = color, ccw = ccw, size = segments,
 								track = empty and ammo_circle.flash(clock) or nil })
 							if empty and rounds then
 								kit:layer(424)
-								ammo_circle.draw_button(kit, ammo_circle.reload_button(player.pad), cx, y, 2 * M.inner_radius(scale) * BUTTON)
+								ammo_circle.draw_button(kit, ammo_circle.reload_button(player.pad), cx, cy, 2 * M.inner_radius(scale) * BUTTON)
 							end
 						end
 						kit:opacity(1)

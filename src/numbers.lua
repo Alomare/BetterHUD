@@ -6,6 +6,12 @@
 --
 -- Drawn on a kit with no frame, in screen pixels from the bottom left, as api.world.to_screen answers.
 local api = obsidian.import("obsidian.api")
+
+-- Photo Mode (or any mod) clearing the screen for pictures through Obsidian API's photo effect.
+local function photo_mode()
+	local effects = api.effects
+	return effects ~= nil and effects.is_on ~= nil and effects.is_on("photo_mode") == true
+end
 local enemies = obsidian.module("src/enemies")
 
 local M = {}
@@ -83,8 +89,9 @@ local function screen_of(n, position, scale)
 		return x, y, inside
 	end
 	if position == "bar" then
+		-- A bar held on the screen's edge for an enemy out of view gets no number.
 		local spot = enemies.drawn[n.unit]
-		if spot then return spot.x, spot.y + 4 * scale, true end
+		if spot and not spot.pinned then return spot.x, spot.y + 4 * scale, true end
 	end
 	local anchor = enemies.anchor_of(n.unit) or n.anchor
 	if not anchor then return nil end
@@ -99,11 +106,13 @@ end
 -- it), with the game's hard drop shadow down and to the right. The kit draws text one layer over the layer set,
 -- so the shadow sits on the layer below the number.
 M.FONT = "body_large"
-local SHADOW = { 0, 0, 0, 192 }
+-- The shadow: 25% less opaque than Helldivers Arcade's (192), and a third closer to the number.
+M.SHADOW = { 0, 0, 0, 144 }
+M.SHADOW_REACH = 2 / 3
 
 -- How far the shadow sits from the number, in pixels, for a number `size` pixels tall.
 function M.shadow_offset(size)
-	return math.max(2, math.floor(size / 14))
+	return math.max(2, math.floor(size / 14)) * M.SHADOW_REACH
 end
 
 function M.draw_number(kit, text, x, y, size, ink)
@@ -111,7 +120,7 @@ function M.draw_number(kit, text, x, y, size, ink)
 	local opts = { font = M.FONT, size = size, align = "center" }
 	local d = M.shadow_offset(size)
 	kit:layer(base - 1)
-	opts.color = SHADOW
+	opts.color = M.SHADOW
 	kit:text(text, x + d, y - d, opts)
 	kit:layer(base)
 	opts.color = ink
@@ -150,7 +159,7 @@ function M.install(which, mode, position)
 	obsidian.on_frame(function()
 		local dt = rawget(_G, "ENGINE_DT") or 0.016
 		clock = clock + dt
-		if which() == "off" or not api.game.in_mission() then
+		if which() == "off" or not api.game.in_mission() or photo_mode() then
 			if #live > 0 then
 				for _, n in ipairs(live) do n.gone = true end
 				live = {}

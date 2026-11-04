@@ -1,8 +1,9 @@
 -- A health bar under each player's card, as wide as the card, in missions: red for health, white
 -- chunks that fade out where health was lost, as the game's own bars do, a yellow shield bar over the
 -- top half while a shield holds, crimson while downed and bleeding out, and none while dead. The health and
--- shield fills darken a little from left to right. While downed, a yellow bar half as tall shows how far
--- getting back up has come. Remote players' hitpoints are replicated, so every card has a health bar.
+-- shield fills get a soft shadow that is darkest at the left and clears toward the right, and a thin black
+-- outline runs around the bar. While downed, a yellow bar half as tall shows how far getting back up has
+-- come. Remote players' hitpoints are replicated, so every card has a health bar.
 --
 -- The cards sit along the bottom of the screen in the HUD's 1280x720 space, y up, each growing upward
 -- from y = 0 at Hud:get_player_hud_pos(slot) (hud.lua:1412). The space just under a card is empty.
@@ -72,17 +73,25 @@ local function rect(gui, x, y, z, w, h, c)
 	gui:rect(g("Vector3")(x, y, z), g("Vector2")(w, h), g("Color")(c[1], c[2], c[3], c[4]))
 end
 
--- A soft shadow over a fill, from left to right: clear at the left end of the bar, darkest at the right end, in
--- strips of black that get more opaque. Each strip: { from, to } as shares of the bar's width, and the
--- black's alpha.
+-- A soft shadow over a fill, coming from the left: darkest at the left end of the bar, clear at the right
+-- end, in strips of black that get less opaque. Each strip: { from, to } as shares of the bar's width,
+-- and the black's alpha.
 M.SHADE_STRIPS, M.SHADE_MAX = 16, 72
 
 function M.shade_strips(n, max)
 	local out = {}
 	for i = 1, n do
-		out[i] = { from = (i - 1) / n, to = i / n, alpha = math.floor(max * (i - 0.5) / n + 0.5) }
+		out[i] = { from = (i - 1) / n, to = i / n, alpha = math.floor(max * (n - i + 0.5) / n + 0.5) }
 	end
 	return out
+end
+
+-- A very thin black outline around the bar, at 75% opacity: one pixel, two from 4K on.
+M.OUTLINE = { 191, 0, 0, 0 }
+
+-- The outline's thickness in pixels, for a HUD scale of `scale` pixels a design unit.
+function M.outline_pixels(scale)
+	return math.max(1, math.floor((scale or 1) * 0.7 + 0.5))
 end
 
 local SHADE = M.shade_strips(M.SHADE_STRIPS, M.SHADE_MAX)
@@ -108,9 +117,21 @@ local function numbers(gui, x, y, hp, max)
 	gui:text(text, V3(x + TEXT_X, y + TEXT_Y, Z + 10), C(INK[1], INK[2], INK[3], INK[4]), nil, TEXT_SIZE)
 end
 
+-- The outline around a box from x, y (its bottom left), w by h, `t` design units thick, outside it.
+local function outline(gui, x, y, w, h, t)
+	rect(gui, x - t, y - t, Z, w + 2 * t, t, M.OUTLINE)
+	rect(gui, x - t, y + h, Z, w + 2 * t, t, M.OUTLINE)
+	rect(gui, x - t, y, Z, t, h, M.OUTLINE)
+	rect(gui, x + w, y, Z, t, h, M.OUTLINE)
+end
+
 -- A bar at x, y (its bottom left): backing, track, then a fill of `pct` with a lighter top edge, and with
--- `shaded`, the shadow over the fill.
+-- `shaded`, the shadow over the fill and the outline around it.
 local function bar(gui, x, y, w, h, pct, fill, top, shaded)
+	if shaded then
+		local scale = tonumber(gui.ui_scale) or 1
+		outline(gui, x - 1, y - 1, w + 2, h + 2, M.outline_pixels(scale) / scale)
+	end
 	rect(gui, x - 1, y - 1, Z, w + 2, h + 2, BACK)
 	rect(gui, x, y, Z + 1, w, h, TRACK)
 	rect(gui, x, y, Z + 3, w * pct, h, fill)

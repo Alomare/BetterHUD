@@ -1,13 +1,21 @@
 -- Health bars over enemies, in the game's look: a bar over each enemy a player of this machine has hit
--- (Obsidian API's combat.on_hit, 1.14.0) and each heavy anyone has hurt, in the faction's colour. White
--- chunks fade out where health was lost, as on the game's bars; a pulsing outline shows a burn (orange),
--- poison (green) or stun (blue); the size follows the enemy's health, and a white flash marks a death.
+-- (Obsidian API's combat.on_hit, 1.14.0) and each heavy anyone has hurt, in the faction's colour. A white
+-- stretch shows the health lost since the hits began: each hit renews it, and it fades out all at once
+-- LAG_HOLD seconds after the last. A pulsing outline shows a burn (orange), poison (green) or stun (blue);
+-- the size follows the enemy's health, and a white flash marks a death. The bar of an enemy out of view
+-- waits on the screen's edge, EDGE design units in, on the side the enemy is.
 -- With an older API, every damaged enemy gets a bar.
 --
 -- Drawn on a kit with no frame, in screen pixels from the bottom left, as api.world.to_screen answers.
 -- Sizes are in the HUD's design units, times the HUD's own scale, so they follow the UI scale setting.
 -- Health is the replicated hitpoints of every enemy, so the bars show on every player's game.
 local api = obsidian.import("obsidian.api")
+
+-- Photo Mode (or any mod) clearing the screen for pictures through Obsidian API's photo effect.
+local function photo_mode()
+	local effects = api.effects
+	return effects ~= nil and effects.is_on ~= nil and effects.is_on("photo_mode") == true
+end
 
 local M = {}
 
@@ -16,17 +24,22 @@ local function g(name) return rawget(_G, name) end
 local LINGER = 8 -- seconds a bar stays after the last loss
 local FADE_IN, FADE_OUT = 0.15, 0.27
 local DEATH_HOLD, DEATH_FADE = 0.5, 0.11
-local CHUNK_LIFE, CHUNKS = 1, 5 -- a lost stretch fades out in this many seconds; this many at once
+-- The white stretch of lost health: seconds at full strength after the last hit, then seconds to fade.
+M.LAG_HOLD, M.LAG_FADE = 0.5, 0.35
+local LAG_ALPHA = 0.85
 local LIMIT = 64
+M.OPACITY = 0.85 -- of the whole bar
+M.EDGE = 8 -- design units between the screen's edge and a bar held there
 
 -- By max health: width and height in HUD design units, and how high over the enemy's root when its
 -- bounding box can't be read.
 local TIERS = {
-	{ hp = 0, w = 40, h = 4.1, lift = 2.2 },
-	{ hp = 400, w = 53, h = 5.4, lift = 2.5 },
-	{ hp = 1500, w = 67, h = 6.6, lift = 3.6 },
-	{ hp = 5000, w = 80, h = 8.3, lift = 8.0 },
+	{ hp = 0, w = 40, h = 8.2, lift = 2.2 },
+	{ hp = 400, w = 53, h = 10.8, lift = 2.5 },
+	{ hp = 1500, w = 67, h = 13.2, lift = 3.6 },
+	{ hp = 5000, w = 80, h = 16.6, lift = 8.0 },
 }
+M.TIERS = TIERS
 local LIFT = 13 -- design units between the anchor and the bar
 
 local BACK = "#0d0d0d42"
@@ -128,19 +141,46 @@ local function status(unit, kind, name)
 	return ok and on == true
 end
 
--- Each loss leaves a white chunk where the health was, fading out, as the game's own bars do
--- (hud.lua:461-476). A heal drops the chunks it covers.
-local function chunks_step(b, pct, dt)
+-- How strong the white stretch is at `now`, from 0 to 1.
+function M.lag_alpha(lag, now)
+	if not lag then return 0 end
+	local idle = now - lag.hit
+	if idle <= M.LAG_HOLD then return 1 end
+	return math.max(0, 1 - (idle - M.LAG_HOLD) / M.LAG_FADE)
+end
+
+-- One white stretch for every loss, from the health now up to where it stood before the hits began. A
+-- loss while the stretch shows (or fades) renews it at full strength and keeps its top; it fades once
+-- LAG_HOLD seconds pass without one. A heal past the top drops it. b: { pct, lag }.
+function M.lag_step(b, pct, now)
+	local lag = b.lag
+	if lag and (M.lag_alpha(lag, now) <= 0 or pct >= lag.top - 1e-4) then
+		lag = nil
+	end
 	if pct < b.pct - 1e-4 then
-		table.insert(b.chunks, { from = pct, to = b.pct, life = CHUNK_LIFE })
-		if #b.chunks > CHUNKS then table.remove(b.chunks, 1) end
+		if lag then lag.hit = now else lag = { top = b.pct, hit = now } end
 	end
-	for i = #b.chunks, 1, -1 do
-		local c = b.chunks[i]
-		c.life = c.life - dt
-		if c.life <= 0 or pct >= c.to then table.remove(b.chunks, i) else c.from = math.max(c.from, pct) end
-	end
+	b.lag = lag
 	b.pct = pct
+end
+
+-- Where a bar w by h, its bottom left at x, y on a screen sw by sh, goes when its enemy is out of view:
+-- the nearest spot with `gap` pixels between the bar and each edge. Answers the bottom left.
+function M.pin(x, y, w, h, sw, sh, gap)
+	local function fit(v, size, room)
+		local lo, hi = gap, room - gap - size
+		if hi < lo then return (room - size) / 2 end
+		return math.max(lo, math.min(hi, v))
+	end
+	return fit(x, w, sw), fit(y, h, sh)
+end
+
+-- Whether a point of the level is behind the camera, where the screen position mirrors.
+local function behind(anchor)
+	local cam, V3 = g("CameraManager"), g("Vector3")
+	if not (cam and V3 and cam.world_to_screen) then return false end
+	local ok, s = pcall(cam.world_to_screen, cam, V3(anchor.x, anchor.y, anchor.z))
+	return ok and s ~= nil and s.z <= 0
 end
 
 -- Every enemy that's lost health since it was first seen: hit by this machine's player, or a heavy.
@@ -158,7 +198,7 @@ local function follow(now)
 		if s and s.max_hitpoints and s.max_hitpoints > 0 then
 			local pct = fraction(s)
 			if not b and pct < 1 and wanted(unit) then
-				b = { unit = unit, pct = 1, chunks = {}, born = now, hit = now, max = s.max_hitpoints }
+				b = { unit = unit, pct = 1, born = now, hit = now, max = s.max_hitpoints }
 				tracked[unit] = b
 			end
 			if b and not b.dead then
@@ -203,12 +243,19 @@ local function draw_bar(kit, b, now, scale)
 	end
 	if not b.anchor then return end
 	local sx, sy, inside = api.world.to_screen(b.anchor)
-	if not sx or not inside then return end
+	if not sx then return end
 	local t = tier(b.max)
-	local w, h = t.w * scale, math.max(2, t.h * scale)
+	local w, h = t.w * scale, math.max(4, t.h * scale)
 	local x, y = sx - w / 2, sy + LIFT * scale
-	kit:opacity(alpha_of(b, now))
-	M.drawn[unit] = { x = sx, y = y + h }
+	if not inside then
+		-- Out of view: held on the nearest edge, clear of it by EDGE and the status outline.
+		if behind(b.anchor) then return end
+		local sw, sh = g("Application").resolution()
+		local margin = M.EDGE * scale + math.max(2, RING * scale) + 1
+		x, y = M.pin(x, y, w, h, sw, sh, margin)
+	end
+	kit:opacity(alpha_of(b, now) * M.OPACITY)
+	M.drawn[unit] = { x = x + w / 2, y = y + h, pinned = not inside }
 	if b.dead then
 		kit:rect(x - 1, y - 1, w + 2, h + 2, OUTLINE)
 		kit:rect(x, y, w, h, DEATH)
@@ -231,8 +278,9 @@ local function draw_bar(kit, b, now, scale)
 	kit:rect(x - 1, y - 1, w + 2, h + 2, OUTLINE)
 	kit:rect(x, y, w, h, BACK)
 	local pct = b.pct
-	for _, c in ipairs(b.chunks) do
-		kit:rect(x + w * c.from, y, w * (c.to - c.from), h, rgba(LAG, 0.85 * c.life / CHUNK_LIFE))
+	local lag = M.lag_alpha(b.lag, now)
+	if lag > 0 then
+		kit:rect(x + w * pct, y, w * (b.lag.top - pct), h, rgba(LAG, LAG_ALPHA * lag))
 	end
 	-- The bar runs out where the enemy dies, its constitution counted in (see fraction).
 	kit:rect(x, y, w * pct, h, colours(unit))
@@ -262,7 +310,7 @@ function M.install(active)
 	obsidian.on_frame(function()
 		local dt = rawget(_G, "ENGINE_DT") or 0.016
 		clock = clock + dt
-		if not active() or not api.game.in_mission() then
+		if not active() or not api.game.in_mission() or photo_mode() then
 			if next(tracked) then tracked = {} end
 			return
 		end
@@ -274,7 +322,7 @@ function M.install(active)
 			local list = {}
 			for unit, b in pairs(tracked) do
 				if gone(b, clock) then tracked[unit] = nil else
-					if b.now_pct then chunks_step(b, b.now_pct, dt) end
+					if b.now_pct then M.lag_step(b, b.now_pct, clock) end
 					list[#list + 1] = b
 				end
 			end

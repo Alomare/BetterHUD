@@ -109,9 +109,10 @@ return {
 		eq(#list, 0, "none")
 	end },
 
-	{ "the shadow sits as Helldivers Arcade's does", function()
-		eq(numbers.shadow_offset(15), 2, "small text")
-		eq(numbers.shadow_offset(22.5), 2, "1080p")
-		eq(numbers.shadow_offset(45), 3, "big text")
+	{ "the shadow: a third closer than Helldivers Arcade's, and 25% less opaque", function()
+		near(numbers.shadow_offset(15), 2 * 2 / 3, "small text")
+		near(numbers.shadow_offset(22.5), 2 * 2 / 3, "1080p")
+		near(numbers.shadow_offset(45), 3 * 2 / 3, "big text")
+		eq(numbers.SHADOW[4], 144, "192 less 25%")
 	end },
 }

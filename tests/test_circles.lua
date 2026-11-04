@@ -16,8 +16,98 @@ return {
 		eq(reload.finish(0.1), nil, "gone after a tenth of a second")
 	end },
 
-	{ "the circle sits further right than in 1.7", function()
-		eq(reload.RIGHT > 34, true, "moved right")
+	{ "the circles sit to the left of the Helldiver, a little up", function()
+		eq(reload.LEFT > 34, true, "as far out as before, to the left")
+		eq(reload.RIGHT, nil, "not to the right")
+		eq(reload.UP > 0 and reload.UP < 20, true, "a little up")
+	end },
+
+	{ "the shadow is darkest at the bottom left and clears at the top right", function()
+		near(reload.shadow_at(math.pi / 4), 0, "top right")
+		near(reload.shadow_at(math.pi * 5 / 4), 1, "bottom left")
+		near(reload.shadow_at(0), reload.shadow_at(math.pi / 2), "top as light as the right", 1e-9)
+		near(reload.shadow_at(math.pi), reload.shadow_at(math.pi * 3 / 2), "bottom as dark as the left", 1e-9)
+		eq(reload.shadow_at(math.pi) > reload.shadow_at(0), true, "bottom darker than the top")
+		near(reload.shadow_at(math.pi * 3 / 4), 0.5, "bottom right half way", 1e-9)
+		near(reload.shadow_at(math.pi * 7 / 4), 0.5, "top left half way", 1e-9)
+		local lit, dark = reload.shaded(circle.FILL, math.pi / 4), reload.shaded(circle.FILL, math.pi * 5 / 4)
+		for i = 1, 3 do eq(lit[i], circle.FILL[i], "full color at the top right") end
+		eq(dark[1] < lit[1], true, "darker at the bottom left")
+		eq(dark[4], circle.FILL[4], "same opacity")
+		eq(reload.SHADOW < 0.5, true, "a soft shadow")
+	end },
+
+	{ "one tone for each ring", function()
+		eq(circle.LIT, nil, "no lighter inner half")
+	end },
+
+	{ "segments: one for each round, groups past 30", function()
+		eq(circle.segments(1), nil, "one round: no dividers")
+		eq(circle.segments(nil), nil, "no magazine")
+		local step, count = circle.segments(6)
+		eq(step, 1, "launcher") eq(count, 6, "six")
+		step, count = circle.segments(30)
+		eq(step, 1, "30 rounds") eq(count, 30, "thirty")
+		step, count = circle.segments(45)
+		eq(step, 5, "45 rounds in fives") eq(count, 9, "nine")
+		step, count = circle.segments(110)
+		eq(step, 5, "flamethrower") eq(count, 22, "22")
+		step, count = circle.segments(150)
+		eq(step, 5, "150") eq(count, 30, "thirty")
+		step, count = circle.segments(750)
+		eq(step, 25, "750") eq(count, 30, "thirty")
+		step, count = circle.segments(1500)
+		eq(step, 50, "1500") eq(count, 30, "thirty")
+		for _, n in ipairs({ 31, 99, 151, 301, 2999 }) do
+			eq(select(2, circle.segments(n)) <= circle.MAX_SEGMENTS, true, n .. " within the cap")
+		end
+	end },
+
+	{ "dividers sit between the segments, one at the top", function()
+		local a = reload.divider_angles(4)
+		eq(#a, 4, "four segments, four dividers")
+		near(a[1], math.pi / 2, "a quarter")
+		near(a[3], math.pi * 3 / 2, "three quarters")
+		eq(a[4], 0, "the top")
+		eq(#reload.divider_angles(1), 0, "none for one round")
+	end },
+
+	{ "look: rounds yellow, red below a tenth", function()
+		local fill, ccw, color, size = circle.look("firearm", 0.5, true, false, 30)
+		eq(fill, 0.5, "magazine left") eq(ccw, false, "clockwise") eq(color, circle.FILL, "yellow") eq(size, 30, "dividers")
+		eq(select(3, circle.look("firearm", 0.1, true, false, 30)), circle.FILL, "a tenth is not below")
+		eq(select(3, circle.look("firearm", 2 / 30, true, false, 30)), circle.WARN, "red below a tenth")
+		eq(select(3, circle.look("launcher", 0.05, true, false, 100)), circle.WARN, "any weapon with rounds")
+	end },
+
+	{ "look: a laser fills counter-clockwise with heat, red past nine tenths", function()
+		local fill, ccw, color, size = circle.look("beamweapon", 0.75, false, false)
+		near(fill, 0.25, "heat") eq(ccw, true, "counter-clockwise") eq(color, circle.FILL, "yellow") eq(size, nil, "no dividers")
+		eq(select(3, circle.look("beamweapon", 0.11, false, false)), circle.FILL, "89% heat")
+		eq(select(3, circle.look("beamweapon", 0.05, false, false)), circle.WARN, "95% heat")
+		eq(select(3, circle.look("beamweapon", 0.5, false, true)), circle.WARN, "cooling after an overheat")
+	end },
+
+	{ "look: an arc weapon is blue", function()
+		local fill, ccw, color = circle.look("arcweapon", 0.6, false, false)
+		near(fill, 0.6, "share left") eq(ccw, false, "clockwise") eq(color, circle.ARC, "blue")
+		eq(circle.ARC[3] > circle.ARC[1], true, "blue")
+	end },
+
+	{ "after a reload the ammo circle hides until the next shot", function()
+		local t = {}
+		circle.track(t, "gun", 0.5, 0)
+		circle.track(t, "gun", 0.4, 1)
+		eq(circle.alpha(t.shot, 1.5), 1, "showing after a shot")
+		-- The magazine empties on the way out while reloading: no shot.
+		circle.track(t, "gun", 0, 2, true)
+		eq(t.shot, 1, "not a shot while reloading")
+		circle.reloaded(t)
+		circle.track(t, "gun", 1, 3)
+		eq(circle.alpha(t.shot, 3), 0, "hidden after the reload")
+		eq(circle.alpha(t.shot, 4), 0, "still hidden")
+		circle.track(t, "gun", 29 / 30, 5)
+		eq(circle.alpha(t.shot, 5), 1, "back with the next shot")
 	end },
 
 	{ "reading: rounds", function()

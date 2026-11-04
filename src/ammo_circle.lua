@@ -1,31 +1,37 @@
--- The ammo circle: the reload circle's ring (src/reload.lua draws both, in the same spot), in yellow,
--- filled with the share of the magazine left, or for a laser or arc weapon the share of heat left before
--- it overheats. Empty, the dark track flashes between black and a dark red, and a weapon that fires
--- rounds shows the reload button in the middle. The ring shows from a shot on, and fades out FADE
--- seconds once SHOW seconds have passed without one.
+-- The ammo circle: the reload circle's ring (src/reload.lua draws both, in the same spot). For a weapon
+-- that fires rounds, a yellow ring filled with the share of the magazine left, cut into a segment for
+-- each round, and red below a tenth. For a laser, a ring that fills counter-clockwise with heat, red past
+-- nine tenths. For an arc weapon, a blue ring with the share of heat left. Empty, the dark track flashes
+-- between black and a dark red, and a weapon that fires rounds shows the reload button in the middle.
+-- The ring shows from a shot on, and fades out FADE seconds once SHOW seconds have passed without one.
+-- A finished reload hides it until the next shot.
 local M = {}
 
 local function g(name) return rawget(_G, name) end
 
 M.SHOW, M.FADE = 8, 1 -- seconds after the last shot at full strength; seconds to fade out
 M.FLASH = 0.8 -- seconds from black to dark red and back, while empty
--- The yellow of the game's shield bar (hud_settings.lua foreground_shield), and a lighter inner half.
-M.FILL, M.LIT = { 255, 190, 17, 255 }, { 255, 225, 120, 255 }
+-- The yellow of the game's shield bar (hud_settings.lua foreground_shield), the red of the warnings,
+-- and the blue of arc weapons.
+M.FILL, M.WARN, M.ARC = { 255, 190, 17, 255 }, { 230, 40, 28, 255 }, { 70, 150, 255, 255 }
+M.LOW = 0.1 -- below this share of the magazine, the ring turns red
+M.HOT = 0.9 -- past this much heat, a laser's ring turns red
+M.MAX_SEGMENTS = 30 -- the most segments a ring is cut into; see segments
 M.BLACK, M.RED = { 0, 0, 0, 200 }, { 125, 12, 12, 215 }
 local INK = { 255, 255, 255, 255 }
 
 local function clamp(x) return math.max(0, math.min(1, x)) end
 
--- What a weapon's state shows: the share left (0 to 1), whether it counts rounds, and whether it's
--- empty. nil for a state with neither rounds nor heat. Firearms, flamethrowers and launchers keep
--- rounds and magazine_capacity; lasers and arc weapons keep heat from 0 to 1 (beamweapon_component.lua,
--- arcweapon_component.lua), and at 1 they overheat.
+-- What a weapon's state shows: the share left (0 to 1), whether it counts rounds, whether it's empty,
+-- and for rounds the magazine's size. nil for a state with neither rounds nor heat. Firearms,
+-- flamethrowers and launchers keep rounds and magazine_capacity; lasers and arc weapons keep heat from
+-- 0 to 1 (beamweapon_component.lua, arcweapon_component.lua), and at 1 they overheat.
 function M.reading(state)
 	if type(state) ~= "table" then return nil end
 	local rounds, size = state.rounds, state.magazine_capacity
 	if type(rounds) == "number" and type(size) == "number" and size > 0 then
 		local left = math.max(math.floor(rounds), 0)
-		return clamp(left / size), true, left <= 0
+		return clamp(left / size), true, left <= 0, size
 	end
 	if type(state.heat) == "number" then
 		return clamp(1 - state.heat), false, state.heat >= 1 or state.overheated == true
@@ -33,10 +39,52 @@ function M.reading(state)
 	return nil
 end
 
--- Keeps `t` up to date for a frame: a share that went down on the same weapon is a shot.
-function M.track(t, weapon, share, now)
-	if weapon ~= nil and t.weapon == weapon and t.share and share < t.share - 1e-4 then t.shot = now end
+-- How many rounds each segment of the ring holds for a magazine of `size`: one, up to MAX_SEGMENTS
+-- rounds; past that, the smallest of 5, 10, 25, 50, 100... that keeps the ring at MAX_SEGMENTS
+-- segments or fewer (a 45-round magazine: 9 segments of 5; 150 rounds: 30 of 5; 750: 30 of 25).
+-- Answers the rounds a segment holds and how many dividers that makes, or nil for no dividers.
+function M.segments(size)
+	if type(size) ~= "number" or size < 2 then return nil end
+	size = math.floor(size)
+	local step = 1
+	if size > M.MAX_SEGMENTS then
+		local steps = { 5, 10, 25 }
+		local i = 1
+		step = steps[1]
+		while math.ceil(size / step) > M.MAX_SEGMENTS do
+			i = i + 1
+			step = steps[(i - 1) % 3 + 1] * 10 ^ math.floor((i - 1) / 3)
+		end
+	end
+	local count = math.ceil(size / step)
+	if count < 2 then return nil end
+	return step, count
+end
+
+-- How the ring looks for a weapon component `kind` and its reading: how much of it is filled (0 to 1),
+-- whether it fills counter-clockwise, its color, and for rounds the magazine's size, for the dividers.
+function M.look(kind, share, rounds, empty, size)
+	if rounds then
+		return share, false, share < M.LOW and M.WARN or M.FILL, size
+	end
+	if kind == "beamweapon" then
+		local heat = 1 - share
+		return heat, true, (heat > M.HOT or empty) and M.WARN or M.FILL
+	end
+	if kind == "arcweapon" then return share, false, M.ARC end
+	return share, false, M.FILL
+end
+
+-- Keeps `t` up to date for a frame: a share that went down on the same weapon is a shot. While the
+-- weapon reloads nothing counts as a shot, as the magazine can empty on the way out.
+function M.track(t, weapon, share, now, reloading)
+	if not reloading and weapon ~= nil and t.weapon == weapon and t.share and share < t.share - 1e-4 then t.shot = now end
 	t.weapon, t.share = weapon, share
+end
+
+-- A finished reload: the ring stays hidden until the next shot.
+function M.reloaded(t)
+	t.shot = nil
 end
 
 -- How visible the ring is at `now`, from the time of the last shot (nil for none yet).
