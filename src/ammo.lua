@@ -29,7 +29,17 @@ local function weapon_state(weapon)
 	return nil
 end
 
+-- Whether the player is calling a stratagem: entering a code (the card's "stratagems" state, from
+-- CharacterComponent.get_hud_state) or holding the beacon to throw, where the game swaps the magazine
+-- picture for the stratagem's (Hud.draw_inventory: held_grenade with a stratagem component).
+function M.on_stratagem(info, inventory, has_component)
+	if info and info.state == "stratagems" then return true end
+	local held = inventory and inventory.held_grenade
+	return held ~= nil and not inventory.grenade_thrown and has_component(held, "stratagem") == true
+end
+
 local function draw(hud, info, inventory)
+	if M.on_stratagem(info, inventory, g("EntityAux").has_component) then return end
 	local weapon = inventory and inventory.current_weapon
 	-- No magazine picture, as for the REP-80: nothing to put a number over.
 	local icon = info and info.equipment_info and info.equipment_info.ammo_icon

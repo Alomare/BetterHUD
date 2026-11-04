@@ -30,17 +30,25 @@ if api.mod_settings then
 	local function choice(id, label, list, info)
 		on[id] = page:choice(id, { label = label, info = info, default = on[id], choices = choices(list), on_change = function(v) on[id] = v end })
 	end
-	toggle("ammo", "Ammo counter", "Rounds left in the magazine, over the magazine count, for weapons that fire rounds.")
-	toggle("player_health", "Player health bars", "A health bar under each player card, with a white chunk fading where health was lost.")
+	toggle("ammo", "Ammo counter", "Rounds left in the magazine, over the magazine count, for weapons that fire rounds. Hidden while calling a stratagem.")
+	toggle("player_health", "Player health bars", "A health bar under each player card, with a white chunk fading where health was lost and a cyan shield bar over it while a shield holds.")
 	toggle("player_health_numbers", "Health numbers", "Current and maximum health on each player health bar.")
 	toggle("enemy_health", "Enemy health bars", "A bar over every enemy the player hits and every heavy that any player hurts.")
-	toggle("reload_circle", "Reload circle", "A ring over each local player's Helldiver that fills while the weapon in hand reloads.")
+	toggle("reload_circle", "Reload circle", "A ring to the right of each local Helldiver that fills while the weapon in hand reloads.")
 	toggle("hide_world_health", "Hide on-player health bar", "Hides the health bar the game draws over each Helldiver.")
 	toggle("hide_world_get_up", "Hide on-player recovery bar", "Hides the bar the game draws over a downed Helldiver getting back up.")
 	choice("damage_numbers", "Damage numbers", { { "off", "Off" }, { "enemies", "Enemies" }, { "players", "Players" }, { "both", "Both" } },
 		"Numbers that rise and fade where damage lands: on enemies the player hits, on players losing health, or both.")
-	choice("damage_numbers_mode", "Damage numbers mode", { { "off", "Off" }, { "stacked", "Stacked" }, { "accumulated", "Accumulated" } },
-		"Stacked shows a number for each hit. Accumulated adds up hits on one target less than 0.3 seconds apart into one number.")
+	-- Before 1.7.0 the mode had an Off too. A kept Off moves to "Damage numbers", so numbers that were
+	-- off stay off, and the mode goes back to the default. The row is made with Off first, to read it,
+	-- then again without, which takes its place.
+	local MODES = { { "stacked", "Stacked" }, { "accumulated", "Accumulated" } }
+	local MODE_INFO = "Stacked shows a number for each hit. Accumulated adds up hits on one target less than 0.3 seconds apart into one number."
+	if page:choice("damage_numbers_mode", { default = on.damage_numbers_mode, choices = choices({ { "off", "Off" }, MODES[1], MODES[2] }) }) == "off" then
+		page:set("damage_numbers_mode", on.damage_numbers_mode)
+		page:set("damage_numbers", "off")
+	end
+	choice("damage_numbers_mode", "Damage numbers mode", MODES, MODE_INFO)
 	choice("damage_numbers_position", "Damage numbers position",
 		{ { "entity", "Next to the entity" }, { "bar", "Above health bar" }, { "hit", "At damage instance" } },
 		"Above health bar needs Enemy health bars, and uses the entity spot where no bar shows. At damage instance uses the spot each hit landed.")

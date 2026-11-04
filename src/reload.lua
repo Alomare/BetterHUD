@@ -1,8 +1,10 @@
--- A ring over each local player's Helldiver that fills while the weapon in hand reloads. Each weapon component
+-- A ring beside each local player's Helldiver that fills while the weapon in hand reloads. Each weapon component
 -- that reloads counts reload_time down from reload_duration in the master state, which this machine
 -- holds for its own players, and leaves reload_time below zero when it isn't reloading.
 --
 -- Drawn on a kit with no frame, in screen pixels from the bottom left, as api.world.to_screen answers.
+-- Sizes are in the HUD's design units at 100% UI scale, times the HUD's scale: the resolution's scale
+-- times the UI scale setting (hd_gui.lua:27-32, SaveManager "ui_scale", 0.75 to 1).
 local api = obsidian.import("obsidian.api")
 
 local M = {}
@@ -10,13 +12,16 @@ local M = {}
 local function g(name) return rawget(_G, name) end
 
 local KINDS = { "firearm", "flameweapon", "launcher", "beamweapon", "arcweapon" }
-local HEAD = 1.9 -- metres over the feet
-local ABOVE = 34 -- design units over the head
+local CHEST = 1.0 -- metres over the feet
+local RIGHT = 34 -- design units right of the Helldiver
 local RADIUS, WIDTH = 11, 3.5 -- design units
 local EDGE = 1.5 -- design units of dark border around the track
 local SEGMENTS = 40
-local TRACK, BORDER = { 30, 30, 30, 170 }, { 0, 0, 0, 200 }
-local FILL, LIT = { 255, 200, 60, 255 }, { 255, 236, 160, 255 }
+local TRACK, BORDER = { 30, 30, 30, 85 }, { 0, 0, 0, 100 }
+local FILL, LIT = { 212, 212, 212, 255 }, { 236, 236, 236, 255 }
+local DONE = 0.1 -- seconds a finished ring takes to grow and fade out
+local GROW = 0.45 -- how much bigger it ends, of its size
+local NEAR_END = 0.85 -- a reload that stops past this far counts as finished, not cancelled
 
 -- How far the reload has come, from 0 to 1, or nil when the weapon isn't reloading.
 function M.progress(state)
@@ -53,6 +58,24 @@ local function ring(kit, x, y, r1, r2, from, to, color)
 	end
 end
 
+-- Pixels a design unit: the resolution's scale times the UI scale setting.
+function M.scale(gui, save, w, h)
+	local res = gui and gui.ui_scale_resolution or math.min(w / 1280, h / 720)
+	local user = gui and gui.ui_scale_user
+	if not user and save then
+		local ok, v = pcall(save.get, save, "ui_scale")
+		user = ok and tonumber(v) or nil
+	end
+	return res * (user or 1)
+end
+
+-- How big and how visible a finished ring is, `t` seconds after it finished, or nil once gone.
+function M.finish(t)
+	if t >= DONE then return nil end
+	local f = t / DONE
+	return 1 + GROW * f, 1 - f
+end
+
 function M.draw(kit, x, y, p, scale)
 	local r2 = RADIUS * scale
 	local r1 = r2 - WIDTH * scale
@@ -87,27 +110,45 @@ local function local_players()
 	return out
 end
 
+local last = setmetatable({}, { __mode = "k" }) -- unit: the progress drawn last frame
+local done = setmetatable({}, { __mode = "k" }) -- unit: when its reload finished
+
 function M.install(active)
 	local kit = obsidian.ui.canvas("betterhud_reload", { layer = 420 })
 	local failed = false
+	local clock = 0
 	obsidian.on_frame(function()
+		clock = clock + (rawget(_G, "ENGINE_DT") or 0.016)
 		if not active() or not api.game.in_mission() then return end
 		local ok, err = pcall(function()
 			local st = api.game.state()
 			local hud = st and st.hud
 			if (hud and (hud.hidden or hud.enabled == false)) or (api.map.is_open and api.map.is_open()) then return end
-			local scale = hud and hud.hd_gui and hud.hd_gui.ui_scale
-			if not scale then
-				local _, h = g("Application").resolution()
-				scale = h / 720
-			end
+			local w, h = g("Application").resolution()
+			local scale = M.scale(hud and hud.hd_gui, g("SaveManager"), w, h)
 			local V3 = g("Vector3")
 			for _, unit in ipairs(local_players()) do
 				local p = weapon_progress(unit)
+				local was = last[unit]
+				last[unit] = p
+				if p then
+					done[unit] = nil
+				elseif was and was >= NEAR_END then
+					done[unit] = clock
+				end
+				local grow, alpha = 1, 1
+				if not p and done[unit] then
+					grow, alpha = M.finish(clock - done[unit])
+					if grow then p = 1 else done[unit] = nil end
+				end
 				if p then
 					local at = g("Unit").world_position(unit, 0)
-					local x, y, inside = api.world.to_screen({ x = V3.x(at), y = V3.y(at), z = V3.z(at) + HEAD })
-					if x and inside then M.draw(kit, x, y + ABOVE * scale, p, scale) end
+					local x, y, inside = api.world.to_screen({ x = V3.x(at), y = V3.y(at), z = V3.z(at) + CHEST })
+					if x and inside then
+						kit:opacity(alpha)
+						M.draw(kit, x + RIGHT * scale, y, p, scale * grow)
+						kit:opacity(1)
+					end
 				end
 			end
 		end)

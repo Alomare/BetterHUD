@@ -76,18 +76,17 @@ local function screen_of(n, position, scale)
 	return x + SIDE * scale, y, inside
 end
 
--- A number with a soft drop shadow and a dark outline under it, so it stays readable on snow, sand
--- and explosions. The kit draws text one layer over its own, so each pass sits on the layer below the
--- next: shadow, then outline, then the number.
-local SHADOW, OUTLINE = { 0, 0, 0, 140 }, { 10, 10, 10, 235 }
+-- A number with a faint dark outline under it, so it stays readable on snow, sand and explosions, in
+-- the HUD's own font: Handel Gothic (fonts/handel_normal), which the HUD's numbers use through
+-- set_current_font("body_large") (hud.lua, font_settings.lua). The kit draws text one layer over its
+-- own, so the outline sits on the layer below the number.
+M.FONT = "body_large"
+local OUTLINE = { 10, 10, 10, 94 }
 local AROUND = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 0.7, 0.7 }, { -0.7, 0.7 }, { 0.7, -0.7 }, { -0.7, -0.7 } }
 
 function M.draw_number(kit, text, x, y, size, ink, scale)
 	local base = kit:layer()
-	local opts = { font = "ui_heading", size = size, align = "center" }
-	kit:layer(base - 2)
-	opts.color = SHADOW
-	kit:text(text, x + 1.8 * scale, y - 2.2 * scale, opts)
+	local opts = { font = M.FONT, size = size, align = "center" }
 	kit:layer(base - 1)
 	opts.color = OUTLINE
 	local d = 1.3 * scale
@@ -110,7 +109,7 @@ local function track_players(list, opened, mode, now)
 	end
 end
 
--- which(): "off", "enemies", "players" or "both". mode(): "off", "stacked" or "accumulated".
+-- which(): "off", "enemies", "players" or "both". mode(): "stacked" or "accumulated".
 -- position(): "entity", "bar" or "hit".
 function M.install(which, mode, position)
 	local kit = obsidian.ui.canvas("betterhud_numbers", { layer = 410 })
@@ -118,7 +117,7 @@ function M.install(which, mode, position)
 	local failed = false
 	local function wants(kind)
 		local w = which()
-		return mode() ~= "off" and (w == "both" or w == kind .. "s")
+		return w == "both" or w == kind .. "s"
 	end
 	if api.combat and api.combat.on_hit then
 		api.combat.on_hit(function(victim, hit)
@@ -129,7 +128,7 @@ function M.install(which, mode, position)
 	obsidian.on_frame(function()
 		local dt = rawget(_G, "ENGINE_DT") or 0.016
 		clock = clock + dt
-		if mode() == "off" or which() == "off" or not api.game.in_mission() then
+		if which() == "off" or not api.game.in_mission() then
 			if #live > 0 then live = {} end
 			return
 		end

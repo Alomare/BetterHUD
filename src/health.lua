@@ -1,6 +1,6 @@
 -- A health bar under each player's card, as wide as the card, in missions: red for health, white
--- chunks that fade out where health was lost, as the game's own bars do, dark red while downed and
--- bleeding out, and none while dead. While downed, a yellow bar half as tall shows how far getting
+-- chunks that fade out where health was lost, as the game's own bars do, a cyan shield bar over the
+-- top half while a shield holds, crimson while downed and bleeding out, and none while dead. While downed, a yellow bar half as tall shows how far getting
 -- back up has come. Remote players' hitpoints are replicated, so every card has a health bar.
 --
 -- The cards sit along the bottom of the screen in the HUD's 1280x720 space, y up, each growing upward
@@ -47,8 +47,23 @@ local DEAD_STATES = { dead = true, countdown = true, wait_for_spawn = true }
 -- red (hud_settings.lua) with a lighter top edge.
 local BACK, TRACK = { 170, 22, 24, 26 }, { 200, 8, 9, 10 }
 local RED, RED_TOP = { 255, 255, 55, 25 }, { 255, 255, 130, 95 }
-local LAG, DOWNED = { 255, 255, 255 }, { 255, 130, 20, 15 }
+local LAG, DOWNED = { 255, 255, 255 }, { 255, 220, 40, 34 }
 local YELLOW, YELLOW_TOP = { 255, 255, 190, 17 }, { 255, 255, 225, 120 }
+-- Shield: a cyan bar over the top half of the health bar, as long as the shield is full.
+local SHIELD, SHIELD_TOP = { 255, 60, 190, 255 }, { 255, 170, 235, 255 }
+local SHIELD_HEIGHT = 0.5 -- of the bar's height
+
+-- How full the shield is, from 0 to 1, or nil for none. The Shield Generator Pack sets the shield's
+-- points and maximum with set_shield_info (shield_component.lua), and Helldivers Arcade's shield
+-- upgrade adds to the same command, so one state covers both. The game's own bar shows it only while
+-- shield_activated (Hud.draw_health_bar).
+function M.shield_fill(ss)
+	if type(ss) ~= "table" or not ss.shield_activated then return nil end
+	local points = tonumber(ss.shieldpoints) or 0
+	local max = tonumber(ss.max_shieldpoints) or (type(ss.shield_info) == "table" and tonumber(ss.shield_info.shield)) or 0
+	if points <= 0 or max <= 0 then return nil end
+	return clamp(points / max)
+end
 
 local function rect(gui, x, y, z, w, h, c)
 	if w <= 0 then return end
@@ -64,8 +79,8 @@ local function numbers(gui, x, y, hp, max)
 	local text = string.format("%d / %d", math.ceil(hp), math.floor(max + 0.5))
 	local V3, C = g("Vector3"), g("Color")
 	gui:set_current_font("body_large")
-	gui:text(text, V3(x + TEXT_X + 0.6, y + TEXT_Y - 0.6, Z + 5), C(SHADOW[1], SHADOW[2], SHADOW[3], SHADOW[4]), nil, TEXT_SIZE)
-	gui:text(text, V3(x + TEXT_X, y + TEXT_Y, Z + 6), C(INK[1], INK[2], INK[3], INK[4]), nil, TEXT_SIZE)
+	gui:text(text, V3(x + TEXT_X + 0.6, y + TEXT_Y - 0.6, Z + 7), C(SHADOW[1], SHADOW[2], SHADOW[3], SHADOW[4]), nil, TEXT_SIZE)
+	gui:text(text, V3(x + TEXT_X, y + TEXT_Y, Z + 8), C(INK[1], INK[2], INK[3], INK[4]), nil, TEXT_SIZE)
 end
 
 -- A bar at x, y (its bottom left): backing, track, then a fill of `pct` with its top edge.
@@ -74,6 +89,14 @@ local function bar(gui, x, y, w, h, pct, fill, top)
 	rect(gui, x, y, Z + 1, w, h, TRACK)
 	rect(gui, x, y, Z + 3, w * pct, h, fill)
 	if top then rect(gui, x, y + h - 1, Z + 4, w * pct, 1, top) end
+end
+
+-- The card keeps the player's shield state (Hud.update_and_draw_hud); a unit without one has none.
+local function shield_state(info, unit)
+	if info.shield_state then return info.shield_state end
+	local aux = g("EntityAux")
+	if not aux.has_component(unit, "shield") then return nil end
+	return aux.state(unit, "shield")
 end
 
 local function draw(hud, dt, unit, slot, hs, cs, show_numbers)
@@ -96,6 +119,13 @@ local function draw(hud, dt, unit, slot, hs, cs, show_numbers)
 			bar(gui, x, y, w, HEIGHT, pct, RED, RED_TOP)
 			for _, c in ipairs(chunks_of(slot, pct, dt or 0)) do
 				rect(gui, x + w * c.from, y, Z + 2, w * (c.to - c.from), HEIGHT, { math.floor(230 * c.life / CHUNK_LIFE), LAG[1], LAG[2], LAG[3] })
+			end
+			local ok, ss = pcall(shield_state, info, unit)
+			local fill = ok and M.shield_fill(ss)
+			if fill then
+				local h = HEIGHT * SHIELD_HEIGHT
+				rect(gui, x, y + HEIGHT - h, Z + 5, w * fill, h, SHIELD)
+				rect(gui, x, y + HEIGHT - 1, Z + 6, w * fill, 1, SHIELD_TOP)
 			end
 			if show_numbers then numbers(gui, x, y, hp, max) end
 		else
