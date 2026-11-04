@@ -18,7 +18,7 @@ M.ROWS = {
 	{ id = "reload_circle", kind = "toggle", default = true, label = "Reload circle",
 		info = "A ring to the left of each local Helldiver that fills while the weapon in hand reloads." },
 	{ id = "ammo_circle", kind = "toggle", default = true, label = "Ammo circle",
-		info = "A yellow ring beside each local Helldiver with the share of the magazine left, a segment for each round (for each group of rounds past 30), red below a tenth. Lasers fill the ring with heat, red past nine tenths. Arc weapons fill it in blue with the charge, dim until the charge can fire. Empty, the ring flashes red, with the reload button inside for weapons that fire rounds. Shows from a shot, hides after a reload, and fades out 8 seconds after the last shot." },
+		info = "A yellow ring beside each local Helldiver with the share of the magazine left, red below a tenth. Lasers fill the ring with heat, red past nine tenths. Arc weapons fill it in blue with the charge, dim until the charge can fire. Empty, the ring flashes red, with the reload button inside for weapons that fire rounds. Shows from a shot, hides after a reload, and fades out 8 seconds after the last shot." },
 	{ id = "hide_world_health", kind = "toggle", default = false, label = "Hide on-player health bar",
 		info = "Takes away the game's own red bar over each Helldiver." },
 	{ id = "hide_world_get_up", kind = "toggle", default = false, label = "Hide on-player recovery bar",

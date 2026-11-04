@@ -38,8 +38,6 @@ local TRACK, BORDER = { 30, 30, 30, 85 }, { 0, 0, 0, 100 }
 local FILL = { 212, 212, 212, 255 }
 -- The shadow: how much darker the fill gets at the bottom left, clearing toward the top right.
 M.SHADOW = 0.35
--- The dividers between segments of the ammo circle: thin, see-through dark lines across the band.
-local DIVIDER, DIVIDER_WIDTH = { 0, 0, 0, 120 }, 0.5 -- color; design units across, at least a pixel
 local DONE = 0.1 -- seconds a finished ring takes to grow and fade out
 local GROW = 0.45 -- how much bigger it ends, of its size
 local NEAR_END = 0.85 -- a reload that stops past this far counts as finished, not cancelled
@@ -95,14 +93,6 @@ local function ring(kit, x, y, r1, r2, from, to, color, shade)
 	end
 end
 
--- A thin line across the band at angle `a`, `half` pixels to each side.
-local function divider(kit, x, y, r1, r2, a, half, color)
-	local s, c = math.sin(a), math.cos(a)
-	local tx, ty = c * half, -s * half
-	kit:poly({ x + s * r1 - tx, y + c * r1 - ty, x + s * r2 - tx, y + c * r2 - ty,
-		x + s * r2 + tx, y + c * r2 + ty, x + s * r1 + tx, y + c * r1 + ty }, color)
-end
-
 -- Pixels a design unit: the resolution's scale times the UI scale setting.
 function M.scale(gui, save, w, h)
 	local res = gui and gui.ui_scale_resolution or math.min(w / 1280, h / 720)
@@ -126,21 +116,8 @@ function M.inner_radius(scale)
 	return (RADIUS - WIDTH) * scale
 end
 
--- Where the dividers go for a magazine of `size`: the angles (clockwise from the top) between segments.
-function M.divider_angles(size)
-	local step, count = ammo_circle.segments(size)
-	if not step then return {} end
-	size = math.floor(size)
-	local out = {}
-	for i = 1, count - 1 do out[i] = 2 * math.pi * i * step / size end
-	-- The top, where the first segment starts and the last ends.
-	out[#out + 1] = 0
-	return out
-end
-
 -- The ring, filled `p` of the way round from the top, clockwise, or counter-clockwise with look.ccw.
--- look: { fill, track, ccw, size }, or nil for the reload ring's grey; size: the magazine's size, for
--- a divider between each segment.
+-- look: { fill, track, ccw }, or nil for the reload ring's grey.
 function M.draw(kit, x, y, p, scale, look)
 	local r2 = RADIUS * scale
 	local r1 = r2 - WIDTH * scale
@@ -154,11 +131,6 @@ function M.draw(kit, x, y, p, scale, look)
 		local from, to = 0, 2 * math.pi * p
 		if look and look.ccw then from, to = 2 * math.pi * (1 - p), 2 * math.pi end
 		ring(kit, x, y, r1, r2, from, to, look and look.fill or FILL, true)
-	end
-	if look and look.size then
-		kit:layer(422)
-		local half = math.max(1, DIVIDER_WIDTH * scale) / 2
-		for _, a in ipairs(M.divider_angles(look.size)) do divider(kit, x, y, r1, r2, a, half, DIVIDER) end
 	end
 end
 
@@ -242,8 +214,8 @@ function M.install(reload_on, ammo_on)
 							M.draw(kit, cx, cy, p, scale * grow)
 						else
 							kit:opacity(ammo_alpha)
-							local fill, ccw, color, segments = ammo_circle.look(kind, share, rounds, empty, size, ready)
-							M.draw(kit, cx, cy, fill, scale, { fill = color, ccw = ccw, size = segments,
+							local fill, ccw, color = ammo_circle.look(kind, share, rounds, empty, size, ready)
+							M.draw(kit, cx, cy, fill, scale, { fill = color, ccw = ccw,
 								track = empty and ammo_circle.flash(clock) or nil })
 							if empty and rounds then
 								kit:layer(424)

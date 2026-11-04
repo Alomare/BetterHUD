@@ -41,40 +41,9 @@ return {
 		eq(circle.LIT, nil, "no lighter inner half")
 	end },
 
-	{ "segments: one for each round, groups past 30", function()
-		eq(circle.segments(1), nil, "one round: no dividers")
-		eq(circle.segments(nil), nil, "no magazine")
-		local step, count = circle.segments(6)
-		eq(step, 1, "launcher") eq(count, 6, "six")
-		step, count = circle.segments(30)
-		eq(step, 1, "30 rounds") eq(count, 30, "thirty")
-		step, count = circle.segments(45)
-		eq(step, 5, "45 rounds in fives") eq(count, 9, "nine")
-		step, count = circle.segments(110)
-		eq(step, 5, "flamethrower") eq(count, 22, "22")
-		step, count = circle.segments(150)
-		eq(step, 5, "150") eq(count, 30, "thirty")
-		step, count = circle.segments(750)
-		eq(step, 25, "750") eq(count, 30, "thirty")
-		step, count = circle.segments(1500)
-		eq(step, 50, "1500") eq(count, 30, "thirty")
-		for _, n in ipairs({ 31, 99, 151, 301, 2999 }) do
-			eq(select(2, circle.segments(n)) <= circle.MAX_SEGMENTS, true, n .. " within the cap")
-		end
-	end },
-
-	{ "dividers sit between the segments, one at the top", function()
-		local a = reload.divider_angles(4)
-		eq(#a, 4, "four segments, four dividers")
-		near(a[1], math.pi / 2, "a quarter")
-		near(a[3], math.pi * 3 / 2, "three quarters")
-		eq(a[4], 0, "the top")
-		eq(#reload.divider_angles(1), 0, "none for one round")
-	end },
-
 	{ "look: rounds yellow, red below a tenth", function()
 		local fill, ccw, color, size = circle.look("firearm", 0.5, true, false, 30)
-		eq(fill, 0.5, "magazine left") eq(ccw, false, "clockwise") eq(color, circle.FILL, "yellow") eq(size, 30, "dividers")
+		eq(fill, 0.5, "magazine left") eq(ccw, false, "clockwise") eq(color, circle.FILL, "yellow") eq(size, nil, "one band, no segments")
 		eq(select(3, circle.look("firearm", 0.1, true, false, 30)), circle.FILL, "a tenth is not below")
 		eq(select(3, circle.look("firearm", 2 / 30, true, false, 30)), circle.WARN, "red below a tenth")
 		eq(select(3, circle.look("launcher", 0.05, true, false, 100)), circle.WARN, "any weapon with rounds")
@@ -82,7 +51,7 @@ return {
 
 	{ "look: a laser fills counter-clockwise with heat, red past nine tenths", function()
 		local fill, ccw, color, size = circle.look("beamweapon", 0.75, false, false)
-		near(fill, 0.25, "heat") eq(ccw, true, "counter-clockwise") eq(color, circle.FILL, "yellow") eq(size, nil, "no dividers")
+		near(fill, 0.25, "heat") eq(ccw, true, "counter-clockwise") eq(color, circle.FILL, "yellow") eq(size, nil, "one band")
 		eq(select(3, circle.look("beamweapon", 0.11, false, false)), circle.FILL, "89% heat")
 		eq(select(3, circle.look("beamweapon", 0.05, false, false)), circle.WARN, "95% heat")
 		eq(select(3, circle.look("beamweapon", 0.5, false, true)), circle.WARN, "cooling after an overheat")

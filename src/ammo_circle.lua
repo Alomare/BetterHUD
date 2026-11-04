@@ -1,6 +1,5 @@
 -- The ammo circle: the reload circle's ring (src/reload.lua draws both, in the same spot). For a weapon
--- that fires rounds, a yellow ring filled with the share of the magazine left, cut into a segment for
--- each round, and red below a tenth. For a laser, a ring that fills counter-clockwise with heat, red past
+-- that fires rounds, a yellow ring filled with the share of the magazine left, red below a tenth. For a laser, a ring that fills counter-clockwise with heat, red past
 -- nine tenths. For an arc weapon, a blue ring that fills with the charge while the trigger is held, dim
 -- until the charge is enough to fire and bright from there. Empty, the dark track flashes
 -- between black and a dark red, and a weapon that fires rounds shows the reload button in the middle.
@@ -18,7 +17,6 @@ M.FILL, M.WARN, M.ARC = { 255, 190, 17, 255 }, { 230, 40, 28, 255 }, { 70, 150, 
 M.ARC_LOW = { 40, 82, 145, 255 } -- an arc weapon's charge below what it takes to fire
 M.LOW = 0.1 -- below this share of the magazine, the ring turns red
 M.HOT = 0.9 -- past this much heat, a laser's ring turns red
-M.MAX_SEGMENTS = 30 -- the most segments a ring is cut into; see segments
 M.BLACK, M.RED = { 0, 0, 0, 200 }, { 125, 12, 12, 215 }
 local INK = { 255, 255, 255, 255 }
 
@@ -46,34 +44,12 @@ function M.reading(state)
 	return nil
 end
 
--- How many rounds each segment of the ring holds for a magazine of `size`: one, up to MAX_SEGMENTS
--- rounds; past that, the smallest of 5, 10, 25, 50, 100... that keeps the ring at MAX_SEGMENTS
--- segments or fewer (a 45-round magazine: 9 segments of 5; 150 rounds: 30 of 5; 750: 30 of 25).
--- Answers the rounds a segment holds and how many dividers that makes, or nil for no dividers.
-function M.segments(size)
-	if type(size) ~= "number" or size < 2 then return nil end
-	size = math.floor(size)
-	local step = 1
-	if size > M.MAX_SEGMENTS then
-		local steps = { 5, 10, 25 }
-		local i = 1
-		step = steps[1]
-		while math.ceil(size / step) > M.MAX_SEGMENTS do
-			i = i + 1
-			step = steps[(i - 1) % 3 + 1] * 10 ^ math.floor((i - 1) / 3)
-		end
-	end
-	local count = math.ceil(size / step)
-	if count < 2 then return nil end
-	return step, count
-end
-
 -- How the ring looks for a weapon component `kind` and its reading: how much of it is filled (0 to 1),
--- whether it fills counter-clockwise, its color, and for rounds the magazine's size, for the dividers.
+-- and whether it fills counter-clockwise, and the color.
 -- ready: an arc weapon's charge to fire at.
 function M.look(kind, share, rounds, empty, size, ready)
 	if rounds then
-		return share, false, share < M.LOW and M.WARN or M.FILL, size
+		return share, false, share < M.LOW and M.WARN or M.FILL
 	end
 	if kind == "beamweapon" then
 		local heat = 1 - share
