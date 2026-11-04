@@ -84,7 +84,8 @@ jobs:
 
       # The action gets the API key, so it is pinned to the commit of the tag v1.0.0-beta.11 (a tag can be moved);
       # a new version of the action means a new commit here. Obsidian installs the mod, so there is no Mod Manager
-      # Download button.
+      # Download button. The new version is the primary file, the one the page's download buttons point to; the
+      # archived one loses the tag.
       - name: Upload Better HUD
         uses: Nexus-Mods/upload-action@98532f7670c27cbecc78fae03fa3e278147827e2  # v1.0.0-beta.11
         with:
@@ -96,7 +97,7 @@ jobs:
           description: ${{ steps.page.outputs.description }}
           category: main
           archive_existing_version: true
-          primary_mod_manager_download: false
+          primary_mod_manager_download: true
           allow_mod_manager_download: false
           update_mod_version: true
           mod_id: ${{ env.NEXUS_MOD_ID }}
