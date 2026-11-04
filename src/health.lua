@@ -1,5 +1,5 @@
 -- A health bar under each player's card, as wide as the card, in missions: red for health, white
--- chunks that fade out where health was lost, as the game's own bars do, a cyan shield bar over the
+-- chunks that fade out where health was lost, as the game's own bars do, a yellow shield bar over the
 -- top half while a shield holds, crimson while downed and bleeding out, and none while dead. While downed, a yellow bar half as tall shows how far getting
 -- back up has come. Remote players' hitpoints are replicated, so every card has a health bar.
 --
@@ -49,8 +49,9 @@ local BACK, TRACK = { 170, 22, 24, 26 }, { 200, 8, 9, 10 }
 local RED, RED_TOP = { 255, 255, 55, 25 }, { 255, 255, 130, 95 }
 local LAG, DOWNED = { 255, 255, 255 }, { 255, 220, 40, 34 }
 local YELLOW, YELLOW_TOP = { 255, 255, 190, 17 }, { 255, 255, 225, 120 }
--- Shield: a cyan bar over the top half of the health bar, as long as the shield is full.
-local SHIELD, SHIELD_TOP = { 255, 60, 190, 255 }, { 255, 170, 235, 255 }
+-- Shield: a yellow bar over the top half of the health bar, as long as the shield is full, in the
+-- color the game gives shields on its own health bar (hud_settings.lua foreground_shield).
+local SHIELD, SHIELD_TOP = { 255, 255, 190, 17 }, { 255, 255, 225, 120 }
 local SHIELD_HEIGHT = 0.5 -- of the bar's height
 
 -- How full the shield is, from 0 to 1, or nil for none. The Shield Generator Pack sets the shield's

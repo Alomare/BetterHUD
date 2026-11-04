@@ -31,7 +31,7 @@ if api.mod_settings then
 		on[id] = page:choice(id, { label = label, info = info, default = on[id], choices = choices(list), on_change = function(v) on[id] = v end })
 	end
 	toggle("ammo", "Ammo counter", "Rounds left in the magazine, over the magazine count, for weapons that fire rounds. Hidden while calling a stratagem.")
-	toggle("player_health", "Player health bars", "A health bar under each player card, with a white chunk fading where health was lost and a cyan shield bar over it while a shield holds.")
+	toggle("player_health", "Player health bars", "A health bar under each player card, with a white chunk fading where health was lost and a yellow shield bar over it while a shield holds.")
 	toggle("player_health_numbers", "Health numbers", "Current and maximum health on each player health bar.")
 	toggle("enemy_health", "Enemy health bars", "A bar over every enemy the player hits and every heavy that any player hurts.")
 	toggle("reload_circle", "Reload circle", "A ring to the right of each local Helldiver that fills while the weapon in hand reloads.")
