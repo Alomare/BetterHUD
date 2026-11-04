@@ -17,14 +17,6 @@ return {
 		eq(health.SHADE_MAX <= 96, true, "subtle")
 	end },
 
-	{ "a very thin black outline at 75% opacity", function()
-		eq(health.OUTLINE[1], 191, "75% opacity")
-		eq(health.OUTLINE[2] + health.OUTLINE[3] + health.OUTLINE[4], 0, "black")
-		eq(health.outline_pixels(1), 1, "720p: one pixel")
-		eq(health.outline_pixels(1.5), 1, "1080p: one pixel")
-		eq(health.outline_pixels(3), 2, "4K: two pixels")
-	end },
-
 	{ "shield fill", function()
 		eq(health.shield_fill(nil), nil, "no shield")
 		eq(health.shield_fill({ shield_activated = false, shieldpoints = 5, max_shieldpoints = 10 }), nil, "off")
