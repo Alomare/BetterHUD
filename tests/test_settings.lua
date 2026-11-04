@@ -181,6 +181,33 @@ return {
 			end
 			if row.choices then eq(#o.choices, #row.choices, row.id .. " choice count") end
 			eq(settings.fits(row, row.default), true, row.id .. " default fits")
+			-- The game's languages say what src/words.lua says, and Obsidian's zh-CN has every text too.
+			local label, info, choices = settings.translated(row)
+			for _, lang in ipairs(settings.LANGUAGES) do
+				eq(o.label[lang], label[lang], row.id .. " label " .. lang)
+				eq(o.description[lang], info[lang], row.id .. " description " .. lang)
+				for k, c in ipairs(choices or {}) do eq(o.choices[k].label[lang], c.label[lang], row.id .. " choice " .. k .. " " .. lang) end
+			end
+			eq(type(o.label["zh-CN"]) == "string" and type(o.description["zh-CN"]) == "string", true, row.id .. " zh-CN")
+			for k in ipairs(row.choices or {}) do eq(type(o.choices[k].label["zh-CN"]), "string", row.id .. " choice " .. k .. " zh-CN") end
+		end
+		local m = manifest()
+		for _, lang in ipairs({ "fr", "es", "pt-BR", "zh-CN" }) do eq(type(m.description[lang]), "string", "description " .. lang) end
+	end },
+
+	{ "every translation is there, in Latin-1 for the game's font, without repeating the name", function()
+		for _, row in ipairs(settings.ROWS) do
+			local label, info, choices = settings.translated(row)
+			for _, lang in ipairs(settings.LANGUAGES) do
+				local texts = { label[lang], info[lang] }
+				for _, c in ipairs(choices or {}) do texts[#texts + 1] = c.label[lang] end
+				for _, t in ipairs(texts) do
+					eq(type(t), "string", row.id .. " " .. lang)
+					-- Two-byte UTF-8 from \194\128 to \195\191 is Latin-1; anything longer isn't.
+					eq(t:find("[\196-\244]"), nil, row.id .. " " .. lang .. " outside Latin-1: " .. t)
+				end
+				eq(info[lang]:lower():find(label[lang]:lower(), 1, true), nil, row.id .. " " .. lang .. " repeats the name")
+			end
 		end
 	end },
 
@@ -211,8 +238,10 @@ return {
 			eq(r.id, row.id, "order")
 			eq(r.option, true, row.id .. " bound")
 			eq(r.default, row.default, row.id .. " default")
-			eq(r.label, row.label, row.id .. " label")
-			eq(r.info, row.info, row.id .. " info")
+			-- An API with bound rows shows words by language.
+			eq(r.label.en, row.label, row.id .. " label")
+			eq(r.info.en, row.info, row.id .. " info")
+			eq(r.label.fr, settings.translated(row).fr, row.id .. " label fr")
 			if row.choices then
 				eq(#r.choices, #row.choices, row.id .. " choices")
 				for k, c in ipairs(row.choices) do eq(r.choices[k].id, c.id, row.id .. " choice " .. k) end

@@ -1,8 +1,13 @@
 -- Better HUD's settings. Each one is an option in obsidian.json, set in Obsidian, and a row on the pause
 -- menu's Mods page. From Obsidian API 1.16.0 on (api.mod_settings.BINDS) a row is bound to the option of
 -- the same id, so a change in either place shows in the other. tests/run.lua checks that obsidian.json
--- lists the same ids, defaults, choices and words as ROWS.
+-- lists the same ids, defaults, choices and words as ROWS and src/words.lua.
+local words = obsidian.module("src/words")
+
 local M = {}
+
+-- The game's languages besides English, as Obsidian API names them. Words in each come from src/words.lua.
+M.LANGUAGES = { "fr", "es", "pt-BR" }
 
 M.TITLE = "Better HUD"
 
@@ -56,6 +61,26 @@ function M.fits(row, v)
 	return false
 end
 
+-- A row's label, help line and choices with each text as a table by language, English included, for
+-- an API that shows words in the game's language (1.16.0 on, the same version as BINDS).
+function M.translated(row)
+	local label, info = { en = row.label }, { en = row.info }
+	for _, lang in ipairs(M.LANGUAGES) do
+		local w = words[lang][row.id]
+		label[lang], info[lang] = w.label, w.info
+	end
+	local choices = nil
+	if row.choices then
+		choices = {}
+		for i, c in ipairs(row.choices) do
+			local l = { en = c.label }
+			for _, lang in ipairs(M.LANGUAGES) do l[lang] = words[lang][row.id].choices[c.id] end
+			choices[i] = { id = c.id, label = l }
+		end
+	end
+	return label, info, choices
+end
+
 local function make(page, row, opts)
 	if row.kind == "toggle" then return page:toggle(row.id, opts) end
 	return page:choice(row.id, opts)
@@ -80,6 +105,7 @@ function M.setup(mod_settings, get, storage)
 	local function opts_of(row, extra)
 		local o = { label = row.label, info = row.info, choices = row.choices,
 			on_change = function(v) on[row.id] = v end }
+		if bind then o.label, o.info, o.choices = M.translated(row) end
 		for k, v in pairs(extra) do o[k] = v end
 		return o
 	end

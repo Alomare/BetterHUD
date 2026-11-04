@@ -13,4 +13,6 @@ A mod for HELLDIVERS (2015) that adds to the game's HUD, for [Obsidian Mod Manag
 - **Damage numbers mode** (accumulated): stacked shows a number for each hit, which starts rising at once, fastest at the start, to make room for the next. Accumulated shows one number for each target that stays in place, adds every hit while it shows, and fades out where it stands; the next hit after it has gone starts a new one.
 - **Damage numbers position** (next to the entity) can also put them above the health bar or where each hit landed.
 
+The rows in the pause menu come in English, French, Spanish and Brazilian Portuguese, following the game's language, with Obsidian API 1.16.0 or later. The options in Obsidian come in English, Brazilian Portuguese and Chinese.
+
 Needs Obsidian API 1.16.0 or later for the rows in the pause menu to stay in step with the options in Obsidian. With 1.11.0 to 1.15.x the rows are settings of their own, starting from the options' values. Damage numbers on enemies and enemy bars that follow the player's hits need 1.14.0 or later; with an older API, every damaged enemy gets a bar. Values set in the pause menu before 1.8.0 move into the options the first time 1.8.0 runs.
