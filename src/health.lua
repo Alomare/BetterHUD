@@ -129,6 +129,39 @@ local function shield_state(info, unit)
 	return aux.state(unit, "shield")
 end
 
+-- Flashes another mod asks for (M.flash): unit -> { left, total }. The bar shows white over everything,
+-- fading out, with a glow a little past its edges.
+local flashes = {}
+local FLASH_GLOW = 2 -- design units past the bar's edges
+
+-- The white's alpha `left` seconds from the end of a flash `total` long: full at the start, fading out,
+-- quickly at first.
+function M.flash_alpha(left, total)
+	if not (total and total > 0 and left and left > 0) then return 0 end
+	return math.floor(255 * clamp(left / total) ^ 1.5 + 0.5)
+end
+
+-- obsidian.import("alomare.betterhud").flash_health(unit, seconds): the health bar of the player whose
+-- avatar is `unit` flashes white, fading out over `seconds` (2 when left out). A new flash starts over.
+function M.flash(unit, seconds)
+	if unit == nil then return false end
+	seconds = tonumber(seconds) or 2
+	if seconds <= 0 then flashes[unit] = nil return true end
+	flashes[unit] = { left = math.min(seconds, 10), total = math.min(seconds, 10) }
+	return true
+end
+
+local function draw_flash(gui, unit, x, y, w, dt)
+	local f = flashes[unit]
+	if not f then return end
+	local alpha = M.flash_alpha(f.left, f.total)
+	f.left = f.left - (dt or 0)
+	if f.left <= 0 then flashes[unit] = nil end
+	if alpha <= 0 then return end
+	rect(gui, x - FLASH_GLOW, y - FLASH_GLOW, Z + 11, w + 2 * FLASH_GLOW, HEIGHT + 2 * FLASH_GLOW, { math.floor(alpha * 0.45), 255, 255, 255 })
+	rect(gui, x, y, Z + 12, w, HEIGHT, { alpha, 255, 255, 255 })
+end
+
 local function draw(hud, dt, unit, slot, hs, cs, show_numbers)
 	local info = hud.hud_info and hud.hud_info[slot]
 	local gui = hud.hd_gui
@@ -171,6 +204,7 @@ local function draw(hud, dt, unit, slot, hs, cs, show_numbers)
 				bar(gui, x, y - GAP - h, w, h, clamp((tonumber(cs.get_up_presses) or 0) / need), YELLOW, YELLOW_TOP)
 			end
 		end
+		draw_flash(gui, unit, x, y, w, dt)
 	end
 	gui:move(g("Vector3")(0, 0, 0))
 end

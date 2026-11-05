@@ -22,4 +22,13 @@ return {
 		eq(health.shield_fill({ shield_activated = false, shieldpoints = 5, max_shieldpoints = 10 }), nil, "off")
 		near(health.shield_fill({ shield_activated = true, shieldpoints = 5, max_shieldpoints = 10 }), 0.5, "half")
 	end },
+
+	{ "a flash starts white and fades out over its length", function()
+		eq(health.flash_alpha(2, 2), 255, "full at the start")
+		eq(health.flash_alpha(1, 2) < 128, true, "past half gone by the middle")
+		eq(health.flash_alpha(1, 2) > 0, true)
+		eq(health.flash_alpha(0, 2), 0, "gone at the end")
+		eq(health.flash(nil, 2), false)
+		eq(health.flash({}, 2), true)
+	end },
 }
