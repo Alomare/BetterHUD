@@ -87,23 +87,32 @@ return {
 		near(enemies.buildup_of(a, "fire", 99), 1, "held without a drain")
 		rawset(_G, "Unit", nil)
 	end },
-	{ "an effect's icon fades in fast, runs longer when renewed, and fades out at the end", function()
+	{ "an icon fills with the build-up, fades in once, runs down with an effect and fades out at the end", function()
 		rawset(_G, "Unit", { alive = function(u) return u.alive ~= false end })
-		local a = {}
+		local a, icon = {}, { icon = "stratagem_airstrike" }
 		enemies.now = 10
-		eq(enemies.effect(a, "fire", 5, { icon = "stratagem_airstrike" }), true)
-		eq(enemies.effect_alpha(10, 15, 10), 0, "just started")
-		near(enemies.effect_alpha(10, 15, 10 + enemies.ICON_IN), 1, "in fast")
-		near(enemies.effect_alpha(10, 15, 15 - enemies.ICON_OUT / 2), 0.5, "out at the end")
-		eq(enemies.effect_alpha(10, 15, 15), 0)
-		enemies.now = 14
-		enemies.effect(a, "fire", 5, { icon = "stratagem_airstrike" })
-		eq(enemies.effect_of(a, "fire").start, 10, "renewed, not started again")
-		eq(enemies.effect_of(a, "fire").ends, 19)
+		eq(enemies.buildup(a, "fire", 0.5, 4, icon), true)
+		local b = enemies.entry_of(a, "fire")
+		eq(enemies.icon_alpha(b, 10), 0, "just started")
+		near(enemies.icon_alpha(b, 10 + enemies.ICON_IN), 1, "in fast")
+		near(enemies.buildup_of(a, "fire", 12), 0.25, "wearing off")
+		enemies.now = 11
+		enemies.buildup(a, "fire", 0.8, 4)
+		eq(enemies.entry_of(a, "fire").start, 10, "built up more, not shown again")
+		eq(enemies.entry_of(a, "fire").icon, icon, "keeps the icon")
+		enemies.now = 12
+		eq(enemies.effect(a, "fire", 5, icon), true)
+		near(enemies.buildup_of(a, "fire", 12), 1, "set off: full")
+		near(enemies.buildup_of(a, "fire", 14.5), 0.5, "running down with the effect")
+		b = enemies.entry_of(a, "fire")
+		eq(b.start, 10)
+		near(enemies.icon_alpha(b, 17 - enemies.ICON_OUT / 2), 0.5, "out at the end")
+		eq(enemies.icon_alpha(b, 17), 0)
 		eq(enemies.effect(a, "fire", 5, {}), false, "no icon")
-		eq(enemies.effect(a, "acid", 5, { icon = "x" }), false)
+		eq(enemies.buildup(a, "fire", 0.5, nil, { size = 3 }), false, "not an icon")
+		eq(enemies.effect(a, "acid", 5, icon), false)
 		eq(enemies.effect(a, "fire", 0), true)
-		eq(enemies.effect_of(a, "fire"), nil, "ended")
+		eq(enemies.entry_of(a, "fire"), nil, "ended")
 		rawset(_G, "Unit", nil)
 	end },
 }

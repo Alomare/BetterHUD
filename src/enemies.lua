@@ -233,30 +233,54 @@ end
 
 local function rgba(c, a) return { c[1], c[2], c[3], math.floor(255 * a) } end
 
--- Status build-up another mod reports (M.buildup): unit -> { kind -> { fraction, at, drain } }. Each
--- kind is a strip under the bar, on a dark track that carries on the bar's outline, filling from the
--- left in the status's color, in this order, one under the other. With `drain`, the fill runs down from
--- `fraction` to empty over that many seconds from `at`.
+-- Status build-up another mod reports (M.buildup, M.effect): unit -> { kind -> { fraction, at, drain,
+-- icon, start } }. A kind with an icon shows as that icon over the enemy's health bar, white with a soft
+-- dark outline, filled from the bottom in the status's color as far as the build-up stands, fading in
+-- when it first shows and out as the fill runs out. Several sit side by side, in BUILDUP_KINDS order. A
+-- kind without an icon is a strip under the bar on a dark track, filled from the left. With `drain`, the
+-- fill runs down from `fraction` to empty over that many seconds from `at`.
 M.BUILDUP_KINDS = { "fire", "poison", "stun" }
 local BUILDUP_COLOR = { fire = FIRE, poison = POISON, stun = STUN }
 local buildups = {}
 local HALO = { 0, 0, 0 } -- the dark of a strip's track and an icon's outline
 M.STRIP_PX = 3 -- a strip's thickness, in pixels
 M.TRACK_PX = 1 -- the dark track round a strip, in pixels
+M.now = 0
+M.ICON = 18 -- design units across
+M.ICON_IN, M.ICON_OUT = 0.12, 0.3 -- seconds of the fades
+local ICON_GAP = 3 -- design units between icons, and above the bar
 
--- obsidian.import("alomare.betterhud").status_buildup(unit, kind, fraction, drain): how far a status has
--- built up on an enemy, 0 to 1, shown under the enemy's health bar; nil clears it. drain: seconds over
--- which the strip runs down to empty from now, or nil to hold it. kind: "fire", "poison" or "stun".
--- Entries of units that are gone are dropped.
-function M.buildup(unit, kind, fraction, drain)
-	if unit == nil or not BUILDUP_COLOR[kind] then return false end
-	if fraction ~= nil and type(fraction) ~= "number" then return false end
-	if drain ~= nil and not (type(drain) == "number" and drain > 0) then return false end
+local function valid_icon(icon)
+	return type(icon) == "table" and (icon.art ~= nil or icon.icon ~= nil)
+end
+
+local function drop_gone()
 	local U = g("Unit")
 	for u in pairs(buildups) do
 		local ok, alive = pcall(U.alive, u)
 		if not (ok and alive) then buildups[u] = nil end
 	end
+end
+
+-- How full a build-up entry is `now`, 0 to 1.
+local function fill_of(b, now)
+	if not b.drain then return b.fraction end
+	local left = 1 - (now - b.at) / b.drain
+	return math.max(0, math.min(1, b.fraction * left))
+end
+
+-- obsidian.import("alomare.betterhud").status_buildup(unit, kind, fraction, drain, icon): how far a status
+-- has built up on an enemy, 0 to 1; nil clears it. drain: seconds over which the fill runs down to empty
+-- from now, or nil to hold it. icon: { art = material, uv = { u0, v0, u1, v1 } } for an image a mod
+-- ships, or { icon = name } for one of the game's: shown over the health bar and filled in the status's
+-- color; without one (and none given before), a strip under the bar. kind: "fire", "poison" or "stun".
+-- Entries of units that are gone are dropped.
+function M.buildup(unit, kind, fraction, drain, icon)
+	if unit == nil or not BUILDUP_COLOR[kind] then return false end
+	if fraction ~= nil and type(fraction) ~= "number" then return false end
+	if drain ~= nil and not (type(drain) == "number" and drain > 0) then return false end
+	if icon ~= nil and not valid_icon(icon) then return false end
+	drop_gone()
 	local by = buildups[unit]
 	if fraction == nil or fraction <= 0 then
 		if by then
@@ -267,97 +291,82 @@ function M.buildup(unit, kind, fraction, drain)
 	end
 	by = by or {}
 	buildups[unit] = by
-	by[kind] = { fraction = math.min(1, fraction), at = M.now, drain = drain }
+	local now = M.now
+	local was = by[kind]
+	local showing = was and fill_of(was, now) > 0
+	by[kind] = {
+		fraction = math.min(1, fraction), at = now, drain = drain and math.min(drain, 60) or nil,
+		icon = icon or (was and was.icon), start = showing and was.start or now,
+	}
 	return true
 end
 
--- How full a kind's strip is `now`, 0 to 1, or nil when there is none.
+-- How full a kind's build-up is `now`, 0 to 1, or nil when there is none.
 function M.buildup_of(unit, kind, now)
 	local b = buildups[unit] and buildups[unit][kind]
 	if not b then return nil end
-	if not b.drain then return b.fraction end
-	local left = 1 - ((now or M.now) - b.at) / b.drain
-	return math.max(0, math.min(1, b.fraction * left))
+	return fill_of(b, now or M.now)
 end
 
-local function draw_buildup(kit, unit, x, y, w, now)
-	local by = buildups[unit]
-	if not by then return end
+function M.entry_of(unit, kind)
+	return buildups[unit] and buildups[unit][kind] or nil
+end
+
+-- obsidian.import("alomare.betterhud").status_effect(unit, kind, seconds, icon): an effect runs on an
+-- enemy for `seconds` from now (0 or nil ends it): its icon, full, running down over the seconds. The
+-- same as status_buildup(unit, kind, 1, seconds, icon).
+function M.effect(unit, kind, seconds, icon)
+	if unit == nil or not BUILDUP_COLOR[kind] then return false end
+	if not (tonumber(seconds) and seconds > 0) then return M.buildup(unit, kind, nil) end
+	if not valid_icon(icon) then return false end
+	return M.buildup(unit, kind, 1, seconds, icon)
+end
+
+-- An icon's opacity `now`: in fast from `start`, out over the last ICON_OUT seconds of a drain.
+function M.icon_alpha(b, now)
+	if now < b.start then return 0 end
+	local a = math.min(1, (now - b.start) / M.ICON_IN)
+	if b.drain then
+		local ends = b.at + b.drain
+		if now >= ends then return 0 end
+		a = math.min(a, (ends - now) / M.ICON_OUT)
+	end
+	return a
+end
+
+local function icon_at(kit, spec, x, y, s, h, c, cut)
+	-- cut: the share of the icon's height drawn, from the bottom (y is up, v runs down the image).
+	local uv = spec.uv or { 0, 0, 1, 1 }
+	local f = cut or 1
+	local part = { uv[1], uv[4] - f * (uv[4] - uv[2]), uv[3], uv[4] }
+	if spec.art then return kit:art(spec.art, x, y, s, h * f, c, part) end
+	return kit:icon(spec.icon, x, y, s, h * f, c, part)
+end
+
+-- The strips of kinds without an icon, under the bar.
+local function draw_strips(kit, by, x, y, w, now)
 	local o, e, strip = M.OUTLINE_PX, M.TRACK_PX, M.STRIP_PX
 	local top = y - o
 	for _, kind in ipairs(M.BUILDUP_KINDS) do
-		local f = M.buildup_of(unit, kind, now)
-		if f and f <= 0 then
-			by[kind] = nil
-		elseif f then
+		local b = by[kind]
+		local f = b and not b.icon and fill_of(b, now)
+		if f and f > 0 then
 			-- The track under the bar's outline, then the fill inside it (y is up).
 			kit:rect(x - o, top - strip - e, w + 2 * o, strip + e, rgba(HALO, 0.85))
 			kit:rect(x - o + e, top - strip, (w + 2 * o - 2 * e) * f, strip, rgba(BUILDUP_COLOR[kind], 1))
 			top = top - strip - e
 		end
 	end
-	if next(by) == nil then buildups[unit] = nil end
 end
 
--- Effects another mod reports (M.effect): unit -> { kind -> { start, ends, icon } }. While one runs, its
--- icon shows over the enemy's health bar with a soft dark outline, fading in fast when it starts and
--- out as it ends. Several run side by side, in BUILDUP_KINDS order.
-M.now = 0
-local effects = {}
-M.ICON = 18 -- design units across
-M.ICON_IN, M.ICON_OUT = 0.12, 0.3 -- seconds of the fades
-local ICON_GAP = 3 -- design units between icons, and above the bar
-
--- The icon's opacity `now`, for an effect that started at `start` and ends at `ends`.
-function M.effect_alpha(start, ends, now)
-	if now >= ends or now < start then return 0 end
-	return math.min(1, (now - start) / M.ICON_IN, (ends - now) / M.ICON_OUT)
-end
-
--- obsidian.import("alomare.betterhud").status_effect(unit, kind, seconds, icon): an effect runs on an
--- enemy for `seconds` from now (0 or nil ends it), with `icon` over its health bar: { art = material, uv
--- = { u0, v0, u1, v1 } } for an image a mod ships, or { icon = name } for one of the game's. kind:
--- "fire", "poison" or "stun". Called again while it runs, it runs longer and doesn't fade in again.
-function M.effect(unit, kind, seconds, icon)
-	if unit == nil or not BUILDUP_COLOR[kind] then return false end
-	local U = g("Unit")
-	for u in pairs(effects) do
-		local ok, alive = pcall(U.alive, u)
-		if not (ok and alive) then effects[u] = nil end
-	end
-	local now = M.now
-	local by = effects[unit] or {}
-	if not (tonumber(seconds) and seconds > 0) then
-		by[kind] = nil
-		if next(by) == nil then effects[unit] = nil else effects[unit] = by end
-		return true
-	end
-	if type(icon) ~= "table" or not (icon.art or icon.icon) then return false end
-	local e = by[kind]
-	local running = e and now < e.ends
-	by[kind] = { start = running and e.start or now, ends = now + math.min(seconds, 60), icon = icon }
-	effects[unit] = by
-	return true
-end
-
-function M.effect_of(unit, kind)
-	return effects[unit] and effects[unit][kind] or nil
-end
-
-local function icon_at(kit, spec, x, y, s, c)
-	if spec.art then return kit:art(spec.art, x, y, s, s, c, spec.uv) end
-	return kit:icon(spec.icon, x, y, s, s, c)
-end
-
-local function draw_effects(kit, unit, cx, top, now, scale)
-	local by = effects[unit]
-	if not by then return end
+-- The icons of kinds with one, over the bar: white, filled from the bottom in the status's color.
+local function draw_icons(kit, by, cx, top, now, scale)
 	local shown = {}
 	for _, kind in ipairs(M.BUILDUP_KINDS) do
-		local e = by[kind]
-		if e then
-			local a = M.effect_alpha(e.start, e.ends, now)
-			if a > 0 then shown[#shown + 1] = { e = e, a = a } elseif now >= e.ends then by[kind] = nil end
+		local b = by[kind]
+		if b and b.icon then
+			local a = M.icon_alpha(b, now)
+			if a > 0 then shown[#shown + 1] = { b = b, a = a, f = fill_of(b, now), color = BUILDUP_COLOR[kind] } end
 		end
 	end
 	if #shown == 0 then return end
@@ -369,11 +378,27 @@ local function draw_effects(kit, unit, cx, top, now, scale)
 		-- The soft outline: the icon in black, a little off to each side, faint.
 		local halo = rgba(HALO, 0.35 * item.a)
 		for _, o in ipairs({ { -d, 0 }, { d, 0 }, { 0, -d }, { 0, d }, { -d, -d }, { d, -d }, { -d, d }, { d, d } }) do
-			icon_at(kit, item.e.icon, x + o[1], y + o[2], s, halo)
+			icon_at(kit, item.b.icon, x + o[1], y + o[2], s, s, halo)
 		end
-		icon_at(kit, item.e.icon, x, y, s, rgba({ 255, 255, 255 }, item.a))
+		icon_at(kit, item.b.icon, x, y, s, s, rgba({ 255, 255, 255 }, item.a))
+		if item.f > 0 then icon_at(kit, item.b.icon, x, y, s, s, rgba(item.color, item.a), item.f) end
 		x = x + s + gap
 	end
+end
+
+-- Both, and the entries run out dropped.
+local function draw_buildup(kit, unit, x, y, w, h, now, scale, ring_clear)
+	local by = buildups[unit]
+	if not by then return end
+	for kind, b in pairs(by) do
+		if fill_of(b, now) <= 0 then by[kind] = nil end
+	end
+	if next(by) == nil then
+		buildups[unit] = nil
+		return
+	end
+	draw_strips(kit, by, x, y, w, now)
+	draw_icons(kit, by, x + w / 2, y + h + M.OUTLINE_PX + ring_clear, now, scale)
 end
 
 local function draw_bar(kit, b, now, scale)
@@ -433,9 +458,8 @@ local function draw_bar(kit, b, now, scale)
 	for _, band in ipairs(SHADE) do
 		kit:rect(x, y + h * band[1], w, h * (band[2] - band[1]), band[3])
 	end
-	draw_buildup(kit, unit, x, y, w, now)
-	-- Clear of the status outline's ring, which pulses around the bar while a status is on.
-	draw_effects(kit, unit, x + w / 2, y + h + M.OUTLINE_PX + math.max(2, RING * scale), now, scale)
+	-- The icons clear of the status outline's ring, which pulses around the bar while a status is on.
+	draw_buildup(kit, unit, x, y, w, h, now, scale, math.max(2, RING * scale))
 end
 
 -- The top of an enemy, in the level: where damage numbers sit next to it.
