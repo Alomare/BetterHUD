@@ -1,8 +1,9 @@
 -- The ammo circle: the reload circle's ring (src/reload.lua draws both, in the same spot). For a weapon
--- that fires rounds, a yellow ring filled with the share of the magazine left, red below a tenth. For a laser, a ring that fills counter-clockwise with heat, red past
--- nine tenths. For an arc weapon, a blue ring that fills with the charge while the trigger is held, dim
--- until the charge is enough to fire and bright from there. Empty, the dark track flashes
--- between black and a dark red, and a weapon that fires rounds shows the reload button in the middle.
+-- that fires rounds, a yellow ring filled with the share of the magazine left, fading to red from LOW
+-- to empty. For a laser, a ring that fills counter-clockwise with heat, fading to red from HOT to full.
+-- For an arc weapon, a blue ring that fills with the charge while the trigger is held, dim until the
+-- charge is enough to fire and bright from there. Empty, or overheated for a laser, the ring empties,
+-- the dark track flashes between black and a dark red, and the reload button shows in the middle.
 -- The ring shows from a shot on, and fades out FADE seconds once SHOW seconds have passed without one.
 -- A finished reload hides it until the next shot.
 local M = {}
