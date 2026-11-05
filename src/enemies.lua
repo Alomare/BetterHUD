@@ -233,6 +233,57 @@ end
 
 local function rgba(c, a) return { c[1], c[2], c[3], math.floor(255 * a) } end
 
+-- Status build-up another mod reports (M.buildup): unit -> { kind -> fraction }. Each kind is a thin
+-- strip along the bottom edge of the bar's outline, filling from the left in the status's color, in
+-- this order, one under the other.
+M.BUILDUP_KINDS = { "fire", "poison", "stun" }
+local BUILDUP_COLOR = { fire = FIRE, poison = POISON, stun = STUN }
+local buildups = {}
+
+-- obsidian.import("alomare.betterhud").status_buildup(unit, kind, fraction): how far a status has built
+-- up on an enemy, 0 to 1, shown under the enemy's health bar; nil clears it. kind: "fire", "poison" or
+-- "stun". Entries of units that are gone are dropped.
+function M.buildup(unit, kind, fraction)
+	if unit == nil or not BUILDUP_COLOR[kind] then return false end
+	if fraction ~= nil and type(fraction) ~= "number" then return false end
+	local U = g("Unit")
+	for u in pairs(buildups) do
+		local ok, alive = pcall(U.alive, u)
+		if not (ok and alive) then buildups[u] = nil end
+	end
+	local by = buildups[unit]
+	if fraction == nil or fraction <= 0 then
+		if by then
+			by[kind] = nil
+			if next(by) == nil then buildups[unit] = nil end
+		end
+		return true
+	end
+	by = by or {}
+	buildups[unit] = by
+	by[kind] = math.min(1, fraction)
+	return true
+end
+
+function M.buildup_of(unit, kind)
+	return buildups[unit] and buildups[unit][kind] or nil
+end
+
+local function draw_buildup(kit, unit, x, y, w)
+	local by = buildups[unit]
+	if not by then return end
+	local o = M.OUTLINE_PX
+	local strip = math.max(2, o)
+	local at = y - o
+	for _, kind in ipairs(M.BUILDUP_KINDS) do
+		local f = by[kind]
+		if f then
+			kit:rect(x - o, at, (w + 2 * o) * f, strip, rgba(BUILDUP_COLOR[kind], 0.95))
+			at = at - strip
+		end
+	end
+end
+
 local function draw_bar(kit, b, now, scale)
 	local unit = b.unit
 	if not b.dead or now - b.dead < 0.05 then
@@ -290,6 +341,7 @@ local function draw_bar(kit, b, now, scale)
 	for _, band in ipairs(SHADE) do
 		kit:rect(x, y + h * band[1], w, h * (band[2] - band[1]), band[3])
 	end
+	draw_buildup(kit, unit, x, y, w)
 end
 
 -- The top of an enemy, in the level: where damage numbers sit next to it.

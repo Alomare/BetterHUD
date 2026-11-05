@@ -55,4 +55,22 @@ return {
 		eq(x, 900, "same place across")
 		eq(y, 12, "bottom edge")
 	end },
+
+	{ "status build-up: set, capped, cleared, and dropped with its unit", function()
+		rawset(_G, "Unit", { alive = function(u) return u.alive ~= false end })
+		local a, b = {}, {}
+		eq(enemies.buildup(a, "fire", 0.4), true)
+		eq(enemies.buildup(a, "poison", 1.7), true)
+		near(enemies.buildup_of(a, "fire"), 0.4)
+		eq(enemies.buildup_of(a, "poison"), 1, "no more than full")
+		eq(enemies.buildup(a, "acid", 0.5), false, "a kind without a color")
+		eq(enemies.buildup(a, "fire", "half"), false)
+		eq(enemies.buildup(a, "fire", nil), true)
+		eq(enemies.buildup_of(a, "fire"), nil, "cleared")
+		a.alive = false
+		eq(enemies.buildup(b, "stun", 0.2), true)
+		eq(enemies.buildup_of(a, "poison"), nil, "gone with its unit")
+		near(enemies.buildup_of(b, "stun"), 0.2)
+		rawset(_G, "Unit", nil)
+	end },
 }

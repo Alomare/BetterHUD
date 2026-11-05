@@ -23,3 +23,5 @@ Needs Obsidian API 1.16.0 or later for the rows in the pause menu to stay in ste
 `obsidian.import("alomare.betterhud").grenade_meter(unit, fraction)` shows a charge meter on the upper grenade icon of the card whose player avatar is `unit`: the icon at 30% opacity underneath, and the full icon over it, cut from the left to `fraction` (0 to 1) of the width. `nil` clears it, and a meter whose unit is gone is dropped. The meter works with the grenade counter on or off.
 
 `obsidian.import("alomare.betterhud").flash_health(unit, seconds)` flashes the health bar of the card whose player avatar is `unit` white, fading out over `seconds` (2 when left out). It shows while the player health bars option is on.
+
+`obsidian.import("alomare.betterhud").status_buildup(unit, kind, fraction)` shows how far a status has built up on an enemy: a thin strip along the bottom edge of the enemy health bar, filled from the left to `fraction` (0 to 1) in the color of the status, `"fire"`, `"poison"` or `"stun"`. `nil` clears it, and the strips of an enemy that is gone are dropped. It shows while the enemy health bars option is on and the enemy has a bar.
