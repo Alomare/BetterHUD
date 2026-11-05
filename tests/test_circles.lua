@@ -52,18 +52,56 @@ return {
 		eq(mid[2] < circle.FILL[2] and mid[2] > circle.WARN[2], true, "between the two")
 	end },
 
-	{ "look: a laser fills counter-clockwise with heat, fading to red from 70%, and empties when overheated", function()
+	{ "look: a laser fills counter-clockwise with heat, swings yellow to red faster as it heats, and empties when overheated", function()
 		local function same(a, b, what) for i = 1, 4 do eq(a[i], b[i], what) end end
 		local fill, ccw, color, size = circle.look("beamweapon", 0.75, false, false)
 		near(fill, 0.25, "heat") eq(ccw, true, "counter-clockwise") same(color, circle.FILL, "yellow") eq(size, nil, "one band")
-		same(select(3, circle.look("beamweapon", 0.3, false, false)), circle.FILL, "70% heat")
-		same(select(3, circle.look("beamweapon", 0.15, false, false)), circle.warmth(0.5), "85% heat, half way")
+		eq(circle.pulse_rate(0.4), 0, "no swing under half heat")
+		near(circle.pulse_rate(0.5), circle.PULSE[1])
+		near(circle.pulse_rate(1), circle.PULSE[2], "fastest at full heat")
+		same(circle.heat_color(0.4, 0.5), circle.FILL, "yellow under half heat")
+		same(circle.heat_color(0.8, 0), circle.FILL, "the swing starts yellow")
+		same(circle.heat_color(0.8, 0.5), circle.WARN, "red half way through")
 		fill = circle.look("beamweapon", 0, false, true)
 		eq(fill, 0, "overheated: an empty ring, so the red flash and the reload button show")
 		local _, _, empty = circle.reading({ heat = 1 })
 		eq(empty, true, "full heat is overheated")
 		_, _, empty = circle.reading({ heat = 0.99 })
 		eq(empty, false)
+	end },
+
+	{ "react: running dry and overheating shake the ring, an overheat flashes white, a discharge fades a white ring", function()
+		local function same(a, b, what) for i = 1, 4 do eq(a[i], b[i], what) end end
+		local t = {}
+		circle.react(t, "firearm", 0.1, true, false, nil, 1, 0.016)
+		eq(t.shake, nil)
+		circle.react(t, "firearm", 0, true, true, nil, 2, 0.016)
+		eq(t.shake, 2, "the magazine ran dry")
+		local dx, dy = circle.shake_offset(t, 2.05)
+		eq(math.abs(dx) <= circle.SHAKE_UNITS and math.abs(dy) <= circle.SHAKE_UNITS, true, "slight")
+		near(select(1, circle.shake_offset(t, 2 + circle.SHAKE + 0.01)), 0, "settled")
+		circle.react(t, "firearm", 0, true, true, nil, 3, 0.016)
+		eq(t.shake, 2, "once, not every frame it stays empty")
+
+		local hot = {}
+		circle.react(hot, "beamweapon", 0.2, false, false, nil, 5, 0.1)
+		near(hot.phase, circle.pulse_rate(0.8) * 0.1, "the swing moves on")
+		circle.react(hot, "beamweapon", 0, false, true, nil, 6, 0.1)
+		eq(hot.burnt, 6) eq(hot.shake, 6)
+		same(circle.burn_track(hot, 6), circle.WHITE, "white at the overheat")
+		local later = circle.burn_track(hot, 6 + circle.BURN + circle.FLASH / 2)
+		same(later, circle.HOT_RED, "then a strong red")
+
+		local arc = { shot = 1 }
+		circle.react(arc, "arcweapon", 0.2, false, false, 0.3, 7, 0.016)
+		circle.react(arc, "arcweapon", 1, false, false, 0.3, 7.1, 0.016)
+		eq(arc.discharged, 7.1, "let go at 80% charge") eq(arc.shake, 7.1) eq(arc.shot, nil, "hidden after the fade")
+		near(circle.discharge_alpha(arc, 7.1), 1)
+		eq(circle.discharge_alpha(arc, 7.1 + circle.DISCHARGE + 0.01), nil, "faded")
+		local weak = {}
+		circle.react(weak, "arcweapon", 0.9, false, false, 0.3, 8, 0.016)
+		circle.react(weak, "arcweapon", 1, false, false, 0.3, 8.1, 0.016)
+		eq(weak.discharged, nil, "not enough charge to fire: no discharge")
 	end },
 
 	{ "look: an arc weapon's ring fills with the charge, bright once it can fire", function()

@@ -166,7 +166,8 @@ function M.install(reload_on, ammo_on)
 	local failed = false
 	local clock = 0
 	obsidian.on_frame(function()
-		clock = clock + (rawget(_G, "ENGINE_DT") or 0.016)
+		local dt = rawget(_G, "ENGINE_DT") or 0.016
+		clock = clock + dt
 		local show_reload, show_ammo = reload_on(), ammo_on()
 		if not (show_reload or show_ammo) or not api.game.in_mission() or photo_mode() then return end
 		local ok, err = pcall(function()
@@ -203,20 +204,33 @@ function M.install(reload_on, ammo_on)
 				if not show_reload then p = nil end
 				local share, rounds, empty, size, ready = ammo_circle.reading(state)
 				if share then ammo_circle.track(t, weapon, share, clock, reloading) end
+				ammo_circle.react(t, kind, share, rounds, empty, ready, clock, dt)
 				local ammo_alpha = (show_ammo and share and not reloading and not p) and ammo_circle.alpha(t.shot, clock) or 0
-				if not hidden and (p or ammo_alpha > 0) then
+				local discharge = show_ammo and not p and kind == "arcweapon" and ammo_circle.discharge_alpha(t, clock)
+				if not hidden and (p or ammo_alpha > 0 or discharge) then
 					local at = g("Unit").world_position(unit, 0)
 					local x, y, inside = api.world.to_screen({ x = V3.x(at), y = V3.y(at), z = V3.z(at) + CHEST })
 					if x and inside then
-						local cx, cy = x - M.LEFT * scale, y + M.UP * scale
+						local dx, dy = ammo_circle.shake_offset(t, clock)
+						local cx, cy = x - M.LEFT * scale + dx * scale, y + M.UP * scale + dy * scale
 						if p then
 							kit:opacity(alpha)
 							M.draw(kit, cx, cy, p, scale * grow)
+						elseif discharge then
+							-- An arc weapon let go: the ring full and white, fading out.
+							kit:opacity(discharge)
+							M.draw(kit, cx, cy, 1, scale, { fill = ammo_circle.WHITE })
 						else
 							kit:opacity(ammo_alpha)
 							local fill, ccw, color = ammo_circle.look(kind, share, rounds, empty, size, ready)
-							M.draw(kit, cx, cy, fill, scale, { fill = color, ccw = ccw,
-								track = empty and ammo_circle.flash(clock) or nil })
+							local track = nil
+							if kind == "beamweapon" then
+								if empty then track = ammo_circle.burn_track(t, clock)
+								else color = ammo_circle.heat_color(1 - share, t.phase) end
+							elseif empty then
+								track = ammo_circle.flash(clock)
+							end
+							M.draw(kit, cx, cy, fill, scale, { fill = color, ccw = ccw, track = track })
 							-- An empty magazine or an overheated beam weapon: both reload.
 							if empty and (rounds or kind == "beamweapon") then
 								kit:layer(424)

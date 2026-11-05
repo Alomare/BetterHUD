@@ -1,9 +1,11 @@
 -- The ammo circle: the reload circle's ring (src/reload.lua draws both, in the same spot). For a weapon
 -- that fires rounds, a yellow ring filled with the share of the magazine left, fading to red from LOW
--- to empty. For a laser, a ring that fills counter-clockwise with heat, fading to red from HOT to full.
--- For an arc weapon, a blue ring that fills with the charge while the trigger is held, dim until the
--- charge is enough to fire and bright from there. Empty, or overheated for a laser, the ring empties,
--- the dark track flashes between black and a dark red, and the reload button shows in the middle.
+-- to empty. For a laser, a ring that fills counter-clockwise with heat, swinging between yellow and red
+-- from HOT, faster as it heats. For an arc weapon, a blue ring that fills with the charge while the
+-- trigger is held, dim until the charge is enough to fire and bright from there; let go, it shakes,
+-- turns white and fades out. Empty, the ring shakes and empties, the dark track flashes between black
+-- and a dark red, and the reload button shows in the middle. An overheated laser does the same after a
+-- white flash, with a stronger red.
 -- The ring shows from a shot on, and fades out FADE seconds once SHOW seconds have passed without one.
 -- A finished reload hides it until the next shot.
 local M = {}
@@ -16,10 +18,20 @@ M.FLASH = 0.8 -- seconds from black to dark red and back, while empty
 -- and the blue of arc weapons.
 M.FILL, M.WARN, M.ARC = { 255, 190, 17, 255 }, { 230, 40, 28, 255 }, { 70, 150, 255, 255 }
 M.ARC_LOW = { 40, 82, 145, 255 } -- an arc weapon's charge below what it takes to fire
--- The ring fades from FILL to WARN as the magazine runs from LOW to empty, and as heat runs from HOT
--- to full.
+-- The ring fades from FILL to WARN as the magazine runs from LOW to empty.
 M.LOW = 0.3
-M.HOT = 0.7
+-- From HOT heat, a laser's ring swings between FILL and WARN, PULSE[1] times a second at HOT up to
+-- PULSE[2] at full heat.
+M.HOT = 0.5
+M.PULSE = { 1, 5 }
+-- Overheated, the ring flashes white for BURN seconds, then the track swings between black and HOT_RED.
+M.BURN = 0.3
+M.WHITE = { 255, 255, 255, 255 }
+M.HOT_RED = { 235, 20, 20, 240 }
+-- A shake: the ring jolts up to SHAKE_UNITS design units off its spot, settling over SHAKE seconds.
+M.SHAKE, M.SHAKE_UNITS = 0.3, 1.6
+-- An arc weapon's discharge: the ring, full and white, fades out over DISCHARGE seconds.
+M.DISCHARGE = 0.35
 -- A beam weapon counts as overheated from this much heat: it holds at 1 until reloaded
 -- (BeamweaponComponent.update_masters).
 M.OVERHEATED = 1 - 1e-3
@@ -66,16 +78,86 @@ function M.look(kind, share, rounds, empty, size, ready)
 	end
 	if kind == "beamweapon" then
 		-- Overheated: an empty ring, as an empty magazine, so the track's red flash and the reload button
-		-- show (src/reload.lua).
+		-- show (src/reload.lua). The swing past HOT is M.heat_color's, with the phase M.react keeps.
 		if empty then return 0, true, M.WARN end
-		local heat = 1 - share
-		return heat, true, M.warmth(clamp((heat - M.HOT) / (1 - M.HOT)))
+		return 1 - share, true, M.FILL
 	end
 	if kind == "arcweapon" then
 		local charge = 1 - share
 		return charge, false, charge >= (ready or 0) - 1e-4 and M.ARC or M.ARC_LOW
 	end
 	return share, false, M.FILL
+end
+
+local function mix(a, b, f)
+	local out = {}
+	for i = 1, 4 do out[i] = math.floor(a[i] + (b[i] - a[i]) * f + 0.5) end
+	return out
+end
+
+-- How fast a laser's ring swings at `heat`, in swings a second, or 0 below HOT.
+function M.pulse_rate(heat)
+	if heat < M.HOT then return 0 end
+	return M.PULSE[1] + (M.PULSE[2] - M.PULSE[1]) * clamp((heat - M.HOT) / (1 - M.HOT))
+end
+
+-- A laser's ring color at `heat`, `phase` swings in (M.react keeps it).
+function M.heat_color(heat, phase)
+	if heat < M.HOT then return M.FILL end
+	return mix(M.FILL, M.WARN, 0.5 - 0.5 * math.cos(2 * math.pi * (phase or 0)))
+end
+
+-- The events of a frame, kept in `t`: a magazine running dry or a laser overheating shake the ring (an
+-- overheat also starts the white flash), an arc weapon's charge let go shakes it and starts the
+-- discharge, and a hot laser's swing moves on by `dt`.
+function M.react(t, kind, share, rounds, empty, ready, now, dt)
+	if not share then
+		t.was_empty, t.charge = nil, nil
+		return
+	end
+	if empty and t.was_empty == false then
+		t.shake = now
+		if kind == "beamweapon" then t.burnt = now end
+	end
+	t.was_empty = empty == true
+	if kind == "beamweapon" and not empty then
+		t.phase = ((t.phase or 0) + M.pulse_rate(1 - share) * (dt or 0)) % 1
+	else
+		t.phase = 0
+	end
+	if kind == "arcweapon" then
+		local charge = 1 - share
+		if t.charge and t.charge >= (ready or 0) - 1e-4 and t.charge > 0.05 and charge <= 0.05 then
+			t.shake, t.discharged = now, now
+			t.shot = nil
+		end
+		t.charge = charge
+	end
+end
+
+-- How far off its spot the ring is `now`, in design units: x, y.
+function M.shake_offset(t, now)
+	local since = t.shake and now - t.shake
+	if not since or since < 0 or since >= M.SHAKE then return 0, 0 end
+	local a = M.SHAKE_UNITS * (1 - since / M.SHAKE)
+	return a * math.sin(since * 97), a * math.cos(since * 71)
+end
+
+-- The track of an overheated laser `now`: white just after the overheat, into black and HOT_RED.
+function M.burn_track(t, now)
+	-- The swing starts from black as the white flash ends.
+	local since = t.burnt and now - t.burnt
+	local f = 0.5 - 0.5 * math.cos(2 * math.pi * ((since or now) - M.BURN) / M.FLASH)
+	local swing = mix(M.BLACK, M.HOT_RED, f)
+	if since and since >= 0 and since < M.BURN then return mix(M.WHITE, swing, since / M.BURN) end
+	return swing
+end
+
+-- How visible an arc weapon's discharge ring is `now`, 1 to 0, or nil once gone.
+function M.discharge_alpha(t, now)
+	local since = t.discharged and now - t.discharged
+	if not since or since < 0 or since >= M.DISCHARGE then return nil end
+	return 1 - since / M.DISCHARGE
 end
 
 -- Keeps `t` up to date for a frame: a share that went down on the same weapon is a shot. While the
