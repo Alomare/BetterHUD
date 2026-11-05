@@ -27,6 +27,8 @@ obsidian.log("Better HUD " .. tostring(obsidian.version) .. " ready")
 -- What other mods get from obsidian.import("alomare.betterhud").
 -- grenade_meter(unit, fraction): fraction from 0 to 1 shows a charge meter on the upper grenade icon of
 -- the card whose player avatar is `unit`; nil clears it. Meters of units that are gone are dropped.
+-- status_effect(unit, kind, seconds, icon): an icon over an enemy's health bar while an effect runs,
+-- fading in when it starts. icon: { art = material, uv = {...} } or { icon = name }.
 -- status_buildup(unit, kind, fraction): a strip under an enemy's health bar, "fire", "poison" or "stun",
 -- filled 0 to 1; nil clears it.
 -- flash_health(unit, seconds): the health bar of that player's card flashes white, fading out over
@@ -35,4 +37,5 @@ return {
 	grenade_meter = grenades.meter,
 	flash_health = health.flash,
 	status_buildup = enemies.buildup,
+	status_effect = enemies.effect,
 }

@@ -73,4 +73,23 @@ return {
 		near(enemies.buildup_of(b, "stun"), 0.2)
 		rawset(_G, "Unit", nil)
 	end },
+	{ "an effect's icon fades in fast, runs longer when renewed, and fades out at the end", function()
+		rawset(_G, "Unit", { alive = function(u) return u.alive ~= false end })
+		local a = {}
+		enemies.now = 10
+		eq(enemies.effect(a, "fire", 5, { icon = "stratagem_airstrike" }), true)
+		eq(enemies.effect_alpha(10, 15, 10), 0, "just started")
+		near(enemies.effect_alpha(10, 15, 10 + enemies.ICON_IN), 1, "in fast")
+		near(enemies.effect_alpha(10, 15, 15 - enemies.ICON_OUT / 2), 0.5, "out at the end")
+		eq(enemies.effect_alpha(10, 15, 15), 0)
+		enemies.now = 14
+		enemies.effect(a, "fire", 5, { icon = "stratagem_airstrike" })
+		eq(enemies.effect_of(a, "fire").start, 10, "renewed, not started again")
+		eq(enemies.effect_of(a, "fire").ends, 19)
+		eq(enemies.effect(a, "fire", 5, {}), false, "no icon")
+		eq(enemies.effect(a, "acid", 5, { icon = "x" }), false)
+		eq(enemies.effect(a, "fire", 0), true)
+		eq(enemies.effect_of(a, "fire"), nil, "ended")
+		rawset(_G, "Unit", nil)
+	end },
 }

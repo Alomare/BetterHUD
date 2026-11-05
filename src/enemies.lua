@@ -284,6 +284,84 @@ local function draw_buildup(kit, unit, x, y, w)
 	end
 end
 
+-- Effects another mod reports (M.effect): unit -> { kind -> { start, ends, icon } }. While one runs, its
+-- icon shows over the enemy's health bar with a soft dark outline, fading in fast when it starts and
+-- out as it ends. Several run side by side, in BUILDUP_KINDS order.
+M.now = 0
+local effects = {}
+M.ICON = 20 -- design units across
+M.ICON_IN, M.ICON_OUT = 0.12, 0.3 -- seconds of the fades
+local ICON_GAP = 3 -- design units between icons, and above the bar
+local HALO = { 0, 0, 0 }
+
+-- The icon's opacity `now`, for an effect that started at `start` and ends at `ends`.
+function M.effect_alpha(start, ends, now)
+	if now >= ends or now < start then return 0 end
+	return math.min(1, (now - start) / M.ICON_IN, (ends - now) / M.ICON_OUT)
+end
+
+-- obsidian.import("alomare.betterhud").status_effect(unit, kind, seconds, icon): an effect runs on an
+-- enemy for `seconds` from now (0 or nil ends it), with `icon` over its health bar: { art = material, uv
+-- = { u0, v0, u1, v1 } } for an image a mod ships, or { icon = name } for one of the game's. kind:
+-- "fire", "poison" or "stun". Called again while it runs, it runs longer and doesn't fade in again.
+function M.effect(unit, kind, seconds, icon)
+	if unit == nil or not BUILDUP_COLOR[kind] then return false end
+	local U = g("Unit")
+	for u in pairs(effects) do
+		local ok, alive = pcall(U.alive, u)
+		if not (ok and alive) then effects[u] = nil end
+	end
+	local now = M.now
+	local by = effects[unit] or {}
+	if not (tonumber(seconds) and seconds > 0) then
+		by[kind] = nil
+		if next(by) == nil then effects[unit] = nil else effects[unit] = by end
+		return true
+	end
+	if type(icon) ~= "table" or not (icon.art or icon.icon) then return false end
+	local e = by[kind]
+	local running = e and now < e.ends
+	by[kind] = { start = running and e.start or now, ends = now + math.min(seconds, 60), icon = icon }
+	effects[unit] = by
+	return true
+end
+
+function M.effect_of(unit, kind)
+	return effects[unit] and effects[unit][kind] or nil
+end
+
+local function icon_at(kit, spec, x, y, s, c)
+	if spec.art then return kit:art(spec.art, x, y, s, s, c, spec.uv) end
+	return kit:icon(spec.icon, x, y, s, s, c)
+end
+
+local function draw_effects(kit, unit, cx, top, now, scale)
+	local by = effects[unit]
+	if not by then return end
+	local shown = {}
+	for _, kind in ipairs(M.BUILDUP_KINDS) do
+		local e = by[kind]
+		if e then
+			local a = M.effect_alpha(e.start, e.ends, now)
+			if a > 0 then shown[#shown + 1] = { e = e, a = a } elseif now >= e.ends then by[kind] = nil end
+		end
+	end
+	if #shown == 0 then return end
+	local s, gap = M.ICON * scale, ICON_GAP * scale
+	local x = cx - (#shown * s + (#shown - 1) * gap) / 2
+	local y = top + gap
+	local d = math.max(1, 1.5 * scale)
+	for _, item in ipairs(shown) do
+		-- The soft outline: the icon in black, a little off to each side, faint.
+		local halo = rgba(HALO, 0.35 * item.a)
+		for _, o in ipairs({ { -d, 0 }, { d, 0 }, { 0, -d }, { 0, d }, { -d, -d }, { d, -d }, { -d, d }, { d, d } }) do
+			icon_at(kit, item.e.icon, x + o[1], y + o[2], s, halo)
+		end
+		icon_at(kit, item.e.icon, x, y, s, rgba({ 255, 255, 255 }, item.a))
+		x = x + s + gap
+	end
+end
+
 local function draw_bar(kit, b, now, scale)
 	local unit = b.unit
 	if not b.dead or now - b.dead < 0.05 then
@@ -342,6 +420,8 @@ local function draw_bar(kit, b, now, scale)
 		kit:rect(x, y + h * band[1], w, h * (band[2] - band[1]), band[3])
 	end
 	draw_buildup(kit, unit, x, y, w)
+	-- Clear of the status outline's ring, which pulses around the bar while a status is on.
+	draw_effects(kit, unit, x + w / 2, y + h + M.OUTLINE_PX + math.max(2, RING * scale), now, scale)
 end
 
 -- The top of an enemy, in the level: where damage numbers sit next to it.
@@ -364,6 +444,7 @@ function M.install(active)
 	obsidian.on_frame(function()
 		local dt = rawget(_G, "ENGINE_DT") or 0.016
 		clock = clock + dt
+		M.now = clock
 		if not active() or not api.game.in_mission() or photo_mode() then
 			if next(tracked) then tracked = {} end
 			return
