@@ -14,6 +14,8 @@ M.TITLE = "Better HUD"
 M.ROWS = {
 	{ id = "ammo", kind = "toggle", default = true, label = "Ammo counter",
 		info = "Rounds left in the magazine, over the magazine count, for weapons that fire rounds. Hidden while calling a stratagem." },
+	{ id = "grenade_counter", kind = "toggle", default = true, label = "Grenade counter",
+		info = "Replaces the lower grenade icon on each player card with the number of grenades, such as x3, so counts above two show too." },
 	{ id = "player_health", kind = "toggle", default = true, label = "Player health bars",
 		info = "A red bar under each player card, with a white chunk fading where health was lost and a yellow bar over it while a shield holds." },
 	{ id = "player_health_numbers", kind = "toggle", default = false, label = "Health numbers",

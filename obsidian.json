@@ -1,7 +1,7 @@
 {
   "obsidian": 1,
   "id": "alomare.betterhud",
-  "version": "1.12.2",
+  "version": "1.13.0",
   "name": {
     "en": "Better HUD"
   },
@@ -23,6 +23,7 @@
     "src/words.lua",
     "src/settings.lua",
     "src/ammo.lua",
+    "src/grenades.lua",
     "src/health.lua",
     "src/enemies.lua",
     "src/world_bars.lua",
@@ -38,6 +39,9 @@
     { "id": "ammo", "type": "toggle", "default": true,
       "label": { "en": "Ammo counter", "pt-BR": "Contador de munição", "zh-CN": "弹药计数", "fr": "Compteur de munitions", "es": "Contador de munición" },
       "description": { "en": "Rounds left in the magazine, over the magazine count, for weapons that fire rounds. Hidden while calling a stratagem.", "pt-BR": "Balas restantes no carregador, acima da contagem de carregadores, para armas que disparam balas. Oculto ao chamar um estratagema.", "zh-CN": "在弹匣数量上方显示弹匣剩余弹药，适用于发射子弹的武器。呼叫战略配备时隐藏。", "fr": "Les balles restantes dans le chargeur, au-dessus du nombre de chargeurs, pour les armes qui tirent des balles. Masqué pendant l'appel d'un stratagème.", "es": "Las balas que quedan en el cargador, sobre el número de cargadores, para las armas que disparan balas. Oculto al pedir una estratagema." } },
+    { "id": "grenade_counter", "type": "toggle", "default": true,
+      "label": { "en": "Grenade counter", "pt-BR": "Contador de granadas", "zh-CN": "手雷计数", "fr": "Compteur de grenades", "es": "Contador de granadas" },
+      "description": { "en": "Replaces the lower grenade icon on each player card with the number of grenades, such as x3, so counts above two show too.", "pt-BR": "Troca o ícone de granada de baixo em cada cartão de jogador pelo número de granadas, como x3, para que contagens acima de duas também apareçam.", "zh-CN": "将每张玩家卡片上靠下的手雷图标换成手雷数量（如 x3），超过两枚时也能显示。", "fr": "Remplace l'icône de grenade du bas sur chaque carte de joueur par le nombre de grenades, comme x3, pour afficher aussi plus de deux grenades.", "es": "Cambia el icono de granada de abajo en cada tarjeta de jugador por el número de granadas, como x3, para que también se vean más de dos." } },
     { "id": "player_health", "type": "toggle", "default": true,
       "label": { "en": "Player health bars", "pt-BR": "Barras de vida dos jogadores", "zh-CN": "玩家生命条", "fr": "Barres de vie des joueurs", "es": "Barras de salud de los jugadores" },
       "description": { "en": "A red bar under each player card, with a white chunk fading where health was lost and a yellow bar over it while a shield holds.", "pt-BR": "Uma barra vermelha sob o cartão de cada jogador, com um trecho branco que some onde a vida foi perdida e uma barra amarela por cima enquanto um escudo resiste.", "zh-CN": "每张玩家卡片下方的红色条，损失生命处会有渐隐的白色片段，护盾生效时上方会叠加一条黄色条。", "fr": "Une barre rouge sous la carte de chaque joueur, avec un morceau blanc qui s'efface là où la vie a été perdue, et une barre jaune par-dessus tant qu'un bouclier tient.", "es": "Una barra roja bajo la tarjeta de cada jugador, con un trozo blanco que se desvanece donde se perdió salud y una barra amarilla encima mientras aguanta un escudo." } },

@@ -23,7 +23,7 @@ function near(got, want, what, tolerance)
 	if math.abs(got - want) > (tolerance or 1e-6) then error((what or "value") .. ": expected " .. want .. ", got " .. got, 2) end
 end
 
-for _, file in ipairs({ "tests/test_numbers.lua", "tests/test_circles.lua", "tests/test_health.lua", "tests/test_enemies.lua", "tests/test_settings.lua" }) do
+for _, file in ipairs({ "tests/test_numbers.lua", "tests/test_circles.lua", "tests/test_health.lua", "tests/test_enemies.lua", "tests/test_settings.lua", "tests/test_grenades.lua" }) do
 	local tests = dofile(file)
 	for _, t in ipairs(tests) do test(file .. " " .. t[1], t[2]) end
 end

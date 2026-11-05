@@ -5,6 +5,8 @@ return {
 	["fr"] = {
 		ammo = { label = "Compteur de munitions",
 			info = "Les balles restantes dans le chargeur, au-dessus du nombre de chargeurs, pour les armes qui tirent des balles. Masqué pendant l'appel d'un stratagème." },
+		grenade_counter = { label = "Compteur de grenades",
+			info = "Remplace l'icône de grenade du bas sur chaque carte de joueur par le nombre de grenades, comme x3, pour afficher aussi plus de deux grenades." },
 		player_health = { label = "Barres de vie des joueurs",
 			info = "Une barre rouge sous la carte de chaque joueur, avec un morceau blanc qui s'efface là où la vie a été perdue, et une barre jaune par-dessus tant qu'un bouclier tient." },
 		player_health_numbers = { label = "Chiffres de vie",
@@ -32,6 +34,8 @@ return {
 	["es"] = {
 		ammo = { label = "Contador de munición",
 			info = "Las balas que quedan en el cargador, sobre el número de cargadores, para las armas que disparan balas. Oculto al pedir una estratagema." },
+		grenade_counter = { label = "Contador de granadas",
+			info = "Cambia el icono de granada de abajo en cada tarjeta de jugador por el número de granadas, como x3, para que también se vean más de dos." },
 		player_health = { label = "Barras de salud de los jugadores",
 			info = "Una barra roja bajo la tarjeta de cada jugador, con un trozo blanco que se desvanece donde se perdió salud y una barra amarilla encima mientras aguanta un escudo." },
 		player_health_numbers = { label = "Números de salud",
@@ -59,6 +63,8 @@ return {
 	["pt-BR"] = {
 		ammo = { label = "Contador de munição",
 			info = "Balas restantes no carregador, acima da contagem de carregadores, para armas que disparam balas. Oculto ao chamar um estratagema." },
+		grenade_counter = { label = "Contador de granadas",
+			info = "Troca o ícone de granada de baixo em cada cartão de jogador pelo número de granadas, como x3, para que contagens acima de duas também apareçam." },
 		player_health = { label = "Barras de vida dos jogadores",
 			info = "Uma barra vermelha sob o cartão de cada jogador, com um trecho branco que some onde a vida foi perdida e uma barra amarela por cima enquanto um escudo resiste." },
 		player_health_numbers = { label = "Números de vida",
