@@ -73,6 +73,20 @@ return {
 		near(enemies.buildup_of(b, "stun"), 0.2)
 		rawset(_G, "Unit", nil)
 	end },
+	{ "a draining build-up runs down to empty over its seconds", function()
+		rawset(_G, "Unit", { alive = function(u) return u.alive ~= false end })
+		local a = {}
+		enemies.now = 20
+		eq(enemies.buildup(a, "fire", 0.8, 4), true)
+		near(enemies.buildup_of(a, "fire", 20), 0.8)
+		near(enemies.buildup_of(a, "fire", 22), 0.4, "half way")
+		eq(enemies.buildup_of(a, "fire", 25), 0, "empty, not under")
+		eq(enemies.buildup(a, "fire", 1, 0), false, "no drain of 0 seconds")
+		eq(enemies.buildup(a, "fire", 1, -1), false)
+		eq(enemies.buildup(a, "fire", 1), true)
+		near(enemies.buildup_of(a, "fire", 99), 1, "held without a drain")
+		rawset(_G, "Unit", nil)
+	end },
 	{ "an effect's icon fades in fast, runs longer when renewed, and fades out at the end", function()
 		rawset(_G, "Unit", { alive = function(u) return u.alive ~= false end })
 		local a = {}

@@ -95,14 +95,15 @@ local function card_of(info)
 	return c
 end
 
--- Where the slots are, in the card's design units.
+-- Where the slots are, in the card's design units. The settings hold boxed vectors, plain tables with
+-- x, y and z fields (Vector3Aux.box, Vector2Aux.box), read as they are: the game has no Vector2.x.
 local function spot_of(info)
 	local icon = info.equipment_info and info.equipment_info.grenade_icon
-	if not (icon and icon.position and icon.size) then return nil end
-	local V3, V2 = g("Vector3"), g("Vector2")
-	local at = g("Vector3Aux").unbox(icon.position)
-	local size = g("Vector2Aux").unbox(icon.size)
-	return { x = V3.x(at), y = V3.y(at), z = V3.z(at), w = V2.x(size), h = V2.y(size), step = tonumber(icon.y_offset) or 0 }
+	local at, size = icon and icon.position, icon and icon.size
+	if not (type(at) == "table" and type(size) == "table") then return nil end
+	local x, y, w, h = tonumber(at.x), tonumber(at.y), tonumber(size.x), tonumber(size.y)
+	if not (x and y and w and h) then return nil end
+	return { x = x, y = y, z = tonumber(at.z) or 0, w = w, h = h, step = tonumber(icon.y_offset) or 0 }
 end
 
 local function slot_at(spot, pos)
@@ -221,7 +222,13 @@ function M.install(counter_on)
 		local gui = self and self.hd_gui
 		local ready, spot = false, nil
 		if type(gui) == "table" and type(info) == "table" then ready, spot = pcall(spot_of, info) end
-		if not (ready and spot) then return original(self, a1, a2, dt, unit, info, inventory, ...) end
+		if not (ready and spot) then
+			if type(info) == "table" and not M.told then
+				M.told = true
+				obsidian.log("betterhud: grenades: no grenade icon spot on a card: " .. tostring(spot))
+			end
+			return original(self, a1, a2, dt, unit, info, inventory, ...)
+		end
 		local c = card_of(info)
 		-- Icons made before Better HUD watched (or lost track of): a count the game hasn't drawn makes it
 		-- touch both again.

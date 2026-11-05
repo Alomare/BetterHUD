@@ -29,8 +29,8 @@ obsidian.log("Better HUD " .. tostring(obsidian.version) .. " ready")
 -- the card whose player avatar is `unit`; nil clears it. Meters of units that are gone are dropped.
 -- status_effect(unit, kind, seconds, icon): an icon over an enemy's health bar while an effect runs,
 -- fading in when it starts. icon: { art = material, uv = {...} } or { icon = name }.
--- status_buildup(unit, kind, fraction): a strip under an enemy's health bar, "fire", "poison" or "stun",
--- filled 0 to 1; nil clears it.
+-- status_buildup(unit, kind, fraction, drain): a strip under an enemy's health bar, "fire", "poison" or
+-- "stun", filled 0 to 1 and, with drain, running down to empty over that many seconds; nil clears it.
 -- flash_health(unit, seconds): the health bar of that player's card flashes white, fading out over
 -- seconds (2 when left out).
 return {
