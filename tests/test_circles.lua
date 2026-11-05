@@ -41,20 +41,29 @@ return {
 		eq(circle.LIT, nil, "no lighter inner half")
 	end },
 
-	{ "look: rounds yellow, red below a tenth", function()
+	{ "look: rounds yellow, fading to red from 30% to empty", function()
+		local function same(a, b, what) for i = 1, 4 do eq(a[i], b[i], what) end end
 		local fill, ccw, color, size = circle.look("firearm", 0.5, true, false, 30)
-		eq(fill, 0.5, "magazine left") eq(ccw, false, "clockwise") eq(color, circle.FILL, "yellow") eq(size, nil, "one band, no segments")
-		eq(select(3, circle.look("firearm", 0.1, true, false, 30)), circle.FILL, "a tenth is not below")
-		eq(select(3, circle.look("firearm", 2 / 30, true, false, 30)), circle.WARN, "red below a tenth")
-		eq(select(3, circle.look("launcher", 0.05, true, false, 100)), circle.WARN, "any weapon with rounds")
+		eq(fill, 0.5, "magazine left") eq(ccw, false, "clockwise") same(color, circle.FILL, "yellow") eq(size, nil, "one band, no segments")
+		same(select(3, circle.look("firearm", 0.3, true, false, 30)), circle.FILL, "still yellow at 30%")
+		same(select(3, circle.look("firearm", 0, true, true, 30)), circle.WARN, "red at empty")
+		local mid = select(3, circle.look("launcher", 0.15, true, false, 100))
+		same(mid, circle.warmth(0.5), "half way at 15%, any weapon with rounds")
+		eq(mid[2] < circle.FILL[2] and mid[2] > circle.WARN[2], true, "between the two")
 	end },
 
-	{ "look: a laser fills counter-clockwise with heat, red past nine tenths", function()
+	{ "look: a laser fills counter-clockwise with heat, fading to red from 70%, and empties when overheated", function()
+		local function same(a, b, what) for i = 1, 4 do eq(a[i], b[i], what) end end
 		local fill, ccw, color, size = circle.look("beamweapon", 0.75, false, false)
-		near(fill, 0.25, "heat") eq(ccw, true, "counter-clockwise") eq(color, circle.FILL, "yellow") eq(size, nil, "one band")
-		eq(select(3, circle.look("beamweapon", 0.11, false, false)), circle.FILL, "89% heat")
-		eq(select(3, circle.look("beamweapon", 0.05, false, false)), circle.WARN, "95% heat")
-		eq(select(3, circle.look("beamweapon", 0.5, false, true)), circle.WARN, "cooling after an overheat")
+		near(fill, 0.25, "heat") eq(ccw, true, "counter-clockwise") same(color, circle.FILL, "yellow") eq(size, nil, "one band")
+		same(select(3, circle.look("beamweapon", 0.3, false, false)), circle.FILL, "70% heat")
+		same(select(3, circle.look("beamweapon", 0.15, false, false)), circle.warmth(0.5), "85% heat, half way")
+		fill = circle.look("beamweapon", 0, false, true)
+		eq(fill, 0, "overheated: an empty ring, so the red flash and the reload button show")
+		local _, _, empty = circle.reading({ heat = 1 })
+		eq(empty, true, "full heat is overheated")
+		_, _, empty = circle.reading({ heat = 0.99 })
+		eq(empty, false)
 	end },
 
 	{ "look: an arc weapon's ring fills with the charge, bright once it can fire", function()

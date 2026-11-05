@@ -37,7 +37,7 @@ local SEGMENTS = 64
 local TRACK, BORDER = { 30, 30, 30, 85 }, { 0, 0, 0, 100 }
 local FILL = { 212, 212, 212, 255 }
 -- The shadow: how much darker the fill gets at the bottom left, clearing toward the top right.
-M.SHADOW = 0.35
+M.SHADOW = 0.2
 local DONE = 0.1 -- seconds a finished ring takes to grow and fade out
 local GROW = 0.45 -- how much bigger it ends, of its size
 local NEAR_END = 0.85 -- a reload that stops past this far counts as finished, not cancelled
@@ -217,7 +217,8 @@ function M.install(reload_on, ammo_on)
 							local fill, ccw, color = ammo_circle.look(kind, share, rounds, empty, size, ready)
 							M.draw(kit, cx, cy, fill, scale, { fill = color, ccw = ccw,
 								track = empty and ammo_circle.flash(clock) or nil })
-							if empty and rounds then
+							-- An empty magazine or an overheated beam weapon: both reload.
+							if empty and (rounds or kind == "beamweapon") then
 								kit:layer(424)
 								ammo_circle.draw_button(kit, ammo_circle.reload_button(player.pad), cx, cy, 2 * M.inner_radius(scale) * BUTTON)
 							end

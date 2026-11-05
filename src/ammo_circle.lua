@@ -15,8 +15,13 @@ M.FLASH = 0.8 -- seconds from black to dark red and back, while empty
 -- and the blue of arc weapons.
 M.FILL, M.WARN, M.ARC = { 255, 190, 17, 255 }, { 230, 40, 28, 255 }, { 70, 150, 255, 255 }
 M.ARC_LOW = { 40, 82, 145, 255 } -- an arc weapon's charge below what it takes to fire
-M.LOW = 0.1 -- below this share of the magazine, the ring turns red
-M.HOT = 0.9 -- past this much heat, a laser's ring turns red
+-- The ring fades from FILL to WARN as the magazine runs from LOW to empty, and as heat runs from HOT
+-- to full.
+M.LOW = 0.3
+M.HOT = 0.7
+-- A beam weapon counts as overheated from this much heat: it holds at 1 until reloaded
+-- (BeamweaponComponent.update_masters).
+M.OVERHEATED = 1 - 1e-3
 M.BLACK, M.RED = { 0, 0, 0, 200 }, { 125, 12, 12, 215 }
 local INK = { 255, 255, 255, 255 }
 
@@ -39,9 +44,16 @@ function M.reading(state)
 		if type(state.min_heat_to_fire) == "number" then
 			return clamp(1 - state.heat), false, false, nil, clamp(state.min_heat_to_fire)
 		end
-		return clamp(1 - state.heat), false, state.heat >= 1 or state.overheated == true
+		return clamp(1 - state.heat), false, state.heat >= M.OVERHEATED or state.overheated == true
 	end
 	return nil
+end
+
+-- The ring's color `t` of the way from FILL (0) to WARN (1).
+function M.warmth(t)
+	local out = {}
+	for i = 1, 4 do out[i] = math.floor(M.FILL[i] + (M.WARN[i] - M.FILL[i]) * t + 0.5) end
+	return out
 end
 
 -- How the ring looks for a weapon component `kind` and its reading: how much of it is filled (0 to 1),
@@ -49,11 +61,14 @@ end
 -- ready: an arc weapon's charge to fire at.
 function M.look(kind, share, rounds, empty, size, ready)
 	if rounds then
-		return share, false, share < M.LOW and M.WARN or M.FILL
+		return share, false, M.warmth(clamp((M.LOW - share) / M.LOW))
 	end
 	if kind == "beamweapon" then
+		-- Overheated: an empty ring, as an empty magazine, so the track's red flash and the reload button
+		-- show (src/reload.lua).
+		if empty then return 0, true, M.WARN end
 		local heat = 1 - share
-		return heat, true, (heat > M.HOT or empty) and M.WARN or M.FILL
+		return heat, true, M.warmth(clamp((heat - M.HOT) / (1 - M.HOT)))
 	end
 	if kind == "arcweapon" then
 		local charge = 1 - share
